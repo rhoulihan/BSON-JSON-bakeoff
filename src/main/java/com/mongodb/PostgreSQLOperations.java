@@ -1,0 +1,171 @@
+package com.mongodb;
+
+import java.sql.Types;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+import org.json.JSONObject;
+import org.postgresql.util.PGobject;
+
+public class PostgreSQLOperations implements DatabaseOperations {
+    private Connection connection;
+    private Random rand = new Random();
+    private PreparedStatement stmt;
+    
+    @Override
+    public void initializeDatabase(String connectionString) {
+        try {
+            connection = DriverManager.getConnection(connectionString);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void dropAndCreateCollections(List<String> collectionNames) {
+        try {
+            PreparedStatement dropStmt;
+            PreparedStatement createStmt;
+            for (String collectionName : collectionNames) {
+                dropStmt = connection.prepareStatement(String.format("DROP TABLE IF EXISTS %s", collectionName));
+                createStmt = connection.prepareStatement(String.format("CREATE UNLOGGED TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray INTEGER[])", collectionName, Main.jsonType));
+                dropStmt.execute();
+                createStmt.execute();
+                
+                createStmt = connection.prepareStatement(String.format("ALTER TABLE %s SET (autovacuum_enabled = false);", collectionName));
+                createStmt.execute();
+                
+                if (collectionName.equals("indexed")) {
+                    createStmt = connection.prepareStatement("CREATE INDEX index1 ON indexed (indexarray)");
+                    createStmt.execute();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public List<Integer> generateObjectIds(int count) {
+        List<Integer> ids = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(i);
+        }
+        return ids;
+    }
+
+    @Override
+    public List<JSONObject> generateDocuments(List<Integer> objectIds) {
+        List<JSONObject> documents = new ArrayList<>();
+        for (Integer id : objectIds) {
+            JSONObject json = new JSONObject();
+            json.put("id", id);
+            documents.add(json);
+        }
+        return documents;
+    }
+
+    @Override
+    public long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
+        String sql = "INSERT INTO " + collectionName + " (data, indexarray) VALUES (?, ?)";
+        
+        for (int i = 1; i < Main.batchSize; i++)
+            sql = sql + ",(?, ?)";
+        
+        try {
+            stmt = connection.prepareStatement(sql);
+            int batchCount = 0;
+            byte[] bytes = new byte[dataSize];
+            rand.nextBytes(bytes);
+
+            List<Integer> indexAttrs = new ArrayList<>();
+            JSONObject dataJson = new JSONObject();
+            if (splitPayload) {
+                dataJson.clear();
+                int length = dataSize / Main.numAttrs;
+                for (int i = 0; i < Main.numAttrs; i++) {
+                    int start = i * length;
+                    dataJson.put("data" + i, Arrays.copyOfRange(bytes, start, start + length));
+                }
+            } else {
+                dataJson.put("data", bytes);
+            }
+            
+            long startTime = System.currentTimeMillis();
+            int setIdx = 0;
+            PGobject pgo = new PGobject();
+            pgo.setType(Main.jsonType);
+            
+            for (JSONObject json : documents) {
+                json.put("payload", dataJson);
+                setIdx++;
+                
+                pgo.setValue(json.toString());
+                stmt.setObject(setIdx, pgo);
+                json.remove("payload");
+                
+                for (int i = 0; i < 10; i++) {
+                    indexAttrs.add(documents.get(rand.nextInt(documents.size())).getInt("id"));
+                }
+                
+                setIdx++;
+                stmt.setObject(setIdx, indexAttrs.stream().mapToInt(Integer::intValue).toArray());
+                
+                if (setIdx == Main.batchSize * 2) {
+                    stmt.execute();
+                    setIdx = 0;
+                }
+                
+                indexAttrs.clear();
+            }
+
+            if (batchCount > 0) {
+                stmt.executeBatch();  // Execute remaining batch if any
+            }
+
+            return System.currentTimeMillis() - startTime;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+    
+    @Override
+    public int queryDocumentsById(String collectionName, int id) {
+        String sql = "SELECT data FROM " + collectionName + " WHERE ? = ANY(indexarray)";
+        try {
+            stmt = connection.prepareStatement(sql);
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            //ArrayList<JSONObject> rowData = new ArrayList<JSONObject>(); // Declare rowData before executeQuery
+            int count = 0;
+            while (rs.next()) {
+                String data = rs.getString("data");
+                // Process the data as needed
+                //rowData.add(new JSONObject(data)); // Parse the data string into a JSONObject
+                count++;
+            }
+            return count;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    @Override
+    public void close() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
