@@ -1,7 +1,7 @@
 # BSON-JSON-bakeoff
 A simple benchmark to insert documents of various size and complexity into either MongoDB or PostgreSQL and report time taken to complete.
 
-Start a MongoDB or PostgreSQL server on localhost and then build and execute as follows:
+Start a MongoDB or PostgreSQL server on localhost, edit connection strings in Main.java and then build/execute as follows:
 
 mvn clean package
 
