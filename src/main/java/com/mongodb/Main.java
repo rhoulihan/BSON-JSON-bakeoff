@@ -87,7 +87,7 @@ public class Main {
             System.out.println(String.format("Using %s attribute type for data.", jsonType));
 
         String mongoConnectionString = "mongodb://localhost:27017";
-        String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
+        String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=password";
 
         initializeDatabase(dbType, dbType.equals("postgresql") ? postgresConnectionString : mongoConnectionString);
 
