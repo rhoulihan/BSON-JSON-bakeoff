@@ -17,4 +17,4 @@ java -jar insertTest-1.0-jar-with-dependencies [-p -j -i -q -s [payloadSizeArray
 -n      Specify the number of attributes to split each payload size across (Default is 10)
 -b      Specify the muber of BSON/JSON/JSONB Documents to batch in each insert (Default is 100)
 
-if [numItems] is not set, the efault value of 10 thousand documents will be generated.
+if [numItems] is not set, the default value of 10 thousand documents will be generated.
