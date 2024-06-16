@@ -1,6 +1,5 @@
 package com.mongodb;
 
-import java.sql.Types;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -10,11 +9,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+
 import org.json.JSONObject;
 import org.postgresql.util.PGobject;
 
 public class PostgreSQLOperations implements DatabaseOperations {
     private Connection connection;
+    private boolean isYugabyteDB=false;
     private Random rand = new Random();
     private PreparedStatement stmt;
     
@@ -22,6 +23,12 @@ public class PostgreSQLOperations implements DatabaseOperations {
     public void initializeDatabase(String connectionString) {
         try {
             connection = DriverManager.getConnection(connectionString);
+            PreparedStatement stmt = connection.prepareStatement("SELECT version()");
+            // test the version for PostgreSQL-compatible databases like YugabyteDB
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            System.out.println(rs.getString(1));
+            isYugabyteDB = rs.getString(1).contains("-YB-");
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -34,12 +41,19 @@ public class PostgreSQLOperations implements DatabaseOperations {
             PreparedStatement createStmt;
             for (String collectionName : collectionNames) {
                 dropStmt = connection.prepareStatement(String.format("DROP TABLE IF EXISTS %s", collectionName));
-                createStmt = connection.prepareStatement(String.format("CREATE UNLOGGED TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray INTEGER[])", collectionName, Main.jsonType));
+    
+                createStmt = connection.prepareStatement(String.format("CREATE %s TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray INTEGER[])"
+                    , isYugabyteDB ? "" : "UNLOGGED", collectionName, Main.jsonType)
+                 )                ;
+
                 dropStmt.execute();
                 createStmt.execute();
-                
+
                 createStmt = connection.prepareStatement(String.format("ALTER TABLE %s SET (autovacuum_enabled = false);", collectionName));
-                createStmt.execute();
+                // YugabyteDB doesn't have VACUUM (not needed)
+                if (!isYugabyteDB) {
+                    createStmt.execute();
+                }
                 
                 if (collectionName.equals("indexed")) {
                     createStmt = connection.prepareStatement("CREATE INDEX index1 ON indexed (indexarray)");
