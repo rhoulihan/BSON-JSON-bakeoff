@@ -18,3 +18,12 @@ java -jar insertTest-1.0-jar-with-dependencies [-p -j -i -q -s [payloadSizeArray
 -b      Specify the muber of BSON/JSON/JSONB Documents to batch in each insert (Default is 100)<br>
 
 if [numItems] is not set, the default value of 10 thousand documents will be generated.
+
+# Test
+
+The `test.sh` script tests the program on MongoDB, PostgreSQL and YugabyteDB (starting them in docker container)
+Example:
+```
+sh test.sh -j -q -n 10 -s 10
+```
+
