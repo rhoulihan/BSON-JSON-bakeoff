@@ -56,7 +56,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
                 }
                 
                 if (collectionName.equals("indexed")) {
-                    createStmt = connection.prepareStatement("CREATE INDEX index1 ON indexed (indexarray)");
+                    createStmt = connection.prepareStatement("CREATE INDEX index1 ON indexed USING gin (indexarray)");
                     createStmt.execute();
                 }
             }
@@ -152,7 +152,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
     
     @Override
     public int queryDocumentsById(String collectionName, int id) {
-        String sql = "SELECT data FROM " + collectionName + " WHERE ? = ANY(indexarray)";
+        String sql = "SELECT data FROM " + collectionName + " WHERE ARRAY[?::integer] <@ indexarray";
         try {
             stmt = connection.prepareStatement(sql);
             stmt.setInt(1, id);
