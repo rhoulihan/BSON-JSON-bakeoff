@@ -42,7 +42,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
             for (String collectionName : collectionNames) {
                 dropStmt = connection.prepareStatement(String.format("DROP TABLE IF EXISTS %s", collectionName));
     
-                createStmt = connection.prepareStatement(String.format("CREATE %s TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray INTEGER[])"
+                createStmt = connection.prepareStatement(String.format("CREATE %s TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray STRING[])"
                     , isYugabyteDB ? "" : "UNLOGGED", collectionName, Main.jsonType)
                  )                ;
 
@@ -66,18 +66,9 @@ public class PostgreSQLOperations implements DatabaseOperations {
     }
 
     @Override
-    public List<Integer> generateObjectIds(int count) {
-        List<Integer> ids = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            ids.add(i);
-        }
-        return ids;
-    }
-
-    @Override
-    public List<JSONObject> generateDocuments(List<Integer> objectIds) {
+    public List<JSONObject> generateDocuments(List<String> objectIds) {
         List<JSONObject> documents = new ArrayList<>();
-        for (Integer id : objectIds) {
+        for (String id : objectIds) {
             JSONObject json = new JSONObject();
             json.put("id", id);
             documents.add(json);
@@ -98,7 +89,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
             byte[] bytes = new byte[dataSize];
             rand.nextBytes(bytes);
 
-            List<Integer> indexAttrs = new ArrayList<>();
+            List<String> indexAttrs = new ArrayList<>();
             JSONObject dataJson = new JSONObject();
             if (splitPayload) {
                 dataJson.clear();
@@ -125,11 +116,11 @@ public class PostgreSQLOperations implements DatabaseOperations {
                 json.remove("payload");
                 
                 for (int i = 0; i < 10; i++) {
-                    indexAttrs.add(documents.get(rand.nextInt(documents.size())).getInt("id"));
+                    indexAttrs.add(documents.get(rand.nextInt(documents.size())).getString("id"));
                 }
                 
                 setIdx++;
-                stmt.setObject(setIdx, indexAttrs.stream().mapToInt(Integer::intValue).toArray());
+                stmt.setObject(setIdx, indexAttrs.stream().toArray());
                 
                 if (setIdx == Main.batchSize * 2) {
                     stmt.execute();
@@ -151,11 +142,11 @@ public class PostgreSQLOperations implements DatabaseOperations {
     }
     
     @Override
-    public int queryDocumentsById(String collectionName, int id) {
-        String sql = "SELECT data FROM " + collectionName + " WHERE ARRAY[?::integer] <@ indexarray";
+    public int queryDocumentsById(String collectionName, String id) {
+        String sql = "SELECT data FROM " + collectionName + " WHERE ARRAY[?::string] <@ indexarray";
         try {
             stmt = connection.prepareStatement(sql);
-            stmt.setInt(1, id);
+            stmt.setString(1, id);
             ResultSet rs = stmt.executeQuery();
             //ArrayList<JSONObject> rowData = new ArrayList<JSONObject>(); // Declare rowData before executeQuery
             int count = 0;
@@ -181,5 +172,11 @@ public class PostgreSQLOperations implements DatabaseOperations {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public int queryDocumentsByIdUsingLookup(String collectionName, String id) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'queryDocumentsByIdUsingLookup'");
     }
 }

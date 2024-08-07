@@ -3,8 +3,6 @@ package com.mongodb;
 import java.util.List;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import org.json.JSONObject;
 
 public class Main {
@@ -13,11 +11,13 @@ public class Main {
     public static int numAttrs = 10;
     private static List<Integer> sizes = new ArrayList<>(Arrays.asList(new Integer[]{100,1000}));
 
-    private static Map<Integer, List<Long>> results = new HashMap<Integer, List<Long>>();
     private static boolean runQueryTest = false;
     private static boolean runIndexTest = false;
+    static boolean runLookupTest = false;
     public static String jsonType = "json";
     public static Integer batchSize = 100;
+    public static Integer numLinks = 10;
+    public static boolean runSingleAttrTest = true;
 
     public static void main(String[] args) {
         String dbType = "mongodb"; // default to MongoDB
@@ -26,6 +26,13 @@ public class Main {
             switch (arg) {
                 case "-j":
                     jsonType = "jsonb";
+                    break;
+                    
+                case "-l":
+                    System.out.println("Including $lookup test...");
+                    runLookupTest = true;
+                    runSingleAttrTest = false;
+                    flag = arg;
                     break;
                     
                 case "-i":
@@ -39,7 +46,7 @@ public class Main {
                     
                 case "-q":
                     System.out.println("Including query test...");
-                    runQueryTest = true;
+                    flag = arg;
                     break;
                     
                 case "-s":
@@ -66,6 +73,12 @@ public class Main {
                             case "-b":
                                 batchSize = Integer.parseInt(arg);
                                 break;
+
+                            case "-l":
+                            case "-q":
+                                runQueryTest = true;
+                                numLinks = Integer.parseInt(arg);
+                                break;
                                 
                             default:
                                 numDocs = Integer.parseInt(arg);
@@ -87,16 +100,19 @@ public class Main {
             System.out.println(String.format("Using %s attribute type for data.", jsonType));
 
         String mongoConnectionString = "mongodb://localhost:27017";
-        String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=password";
+        String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
 
         initializeDatabase(dbType, dbType.equals("postgresql") ? postgresConnectionString : mongoConnectionString);
 
         for (Integer size : sizes){
             handleDataInsertions(size);
+            if (Main.runLookupTest) {
+                Main.runLookupTest = false;
+                handleDataInsertions(size);
+            }
         }
         
         System.out.println();
-        System.out.println(results.toString());
         System.out.println("Done.");
         dbOperations.close(); // Ensure resources are properly closed
     }
@@ -110,46 +126,58 @@ public class Main {
 
         dbOperations.initializeDatabase(connectionString);
     }
+    
+    private static List<String> generateObjectIds(int count) {
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(Integer.toString(i));
+        }
+        return ids;
+    }
 
     private static void handleDataInsertions(Integer dataSize) {
         List<String> collectionNames = new ArrayList<>();
         
-        if (runIndexTest)
+        if (runIndexTest) 
             collectionNames.add("noindex");
         
         collectionNames.add("indexed");
 
         dbOperations.dropAndCreateCollections(collectionNames);
 
-        List<Integer> objectIds = dbOperations.generateObjectIds(numDocs);
+        List<String> objectIds = generateObjectIds(numDocs);
         List<JSONObject> documents = dbOperations.generateDocuments(objectIds);
 
-        List<Long> insertionTimes = new ArrayList<>();
-        for (String collectionName : collectionNames) {
-            long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, false);
-            System.out.println(String.format("Time taken to insert %d documents with %dB payload in 1 attribute into %s: %dms", numDocs, dataSize, collectionName, timeTaken));
-            insertionTimes.add(timeTaken);
-        }
+        if (runSingleAttrTest) {
+            for (String collectionName : collectionNames) {
+                long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, false);
+                System.out.println(String.format("Time taken to insert %d documents with %dB payload in 1 attribute into %s: %dms", numDocs, dataSize, collectionName, timeTaken));
+            }
 
-        dbOperations.dropAndCreateCollections(collectionNames);
+            dbOperations.dropAndCreateCollections(collectionNames);
+        }
 
         for (String collectionName : collectionNames) {
             long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, true);
             System.out.println(String.format("Time taken to insert %d documents with %dB payload in %d attributes into %s: %dms", numDocs, dataSize, numAttrs, collectionName, timeTaken));
-            insertionTimes.add(timeTaken);
         }
-
-        results.put(dataSize, insertionTimes);
 
         // Query documents by ID for "indexed" collection
         if (runQueryTest) {
-            long startTime = System.currentTimeMillis();
             int totalItemsFound = 0;
-            for (Integer id : objectIds) {
-                totalItemsFound += dbOperations.queryDocumentsById("indexed", id);
+            String type = runLookupTest ? "lookup" : "indexed";
+            long startTime = System.currentTimeMillis();
+
+            if (!runLookupTest) {
+                for (String id : objectIds)
+                    totalItemsFound += dbOperations.queryDocumentsById("indexed", id);
+            } else {
+                for (String id : objectIds)
+                    totalItemsFound += dbOperations.queryDocumentsByIdUsingLookup("indexed", id);
             }
+            
             long totalQueryTime = System.currentTimeMillis() - startTime;
-            System.out.println(String.format("Total time taken to query %d ID's from indexedArray: %dms", objectIds.size(), totalQueryTime));
+            System.out.println(String.format("Total time taken to query %d ID's from %s arrays: %dms", objectIds.size(), type, totalQueryTime));
             System.out.println(String.format("Total items found: %d", totalItemsFound));
             System.out.println();
         }

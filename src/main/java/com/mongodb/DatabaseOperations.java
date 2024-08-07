@@ -7,9 +7,9 @@ import java.util.List;
 public interface DatabaseOperations {
     void initializeDatabase(String connectionString);
     void dropAndCreateCollections(List<String> collectionNames);
-    List<Integer> generateObjectIds(int count);
-    List<JSONObject> generateDocuments(List<Integer> objectIds);
+    List<JSONObject> generateDocuments(List<String> objectIds);
     long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload);
-    int queryDocumentsById(String collectionName, int id);
+    int queryDocumentsById(String collectionName, String id);
+    int queryDocumentsByIdUsingLookup(String collectionName, String id);
     void close();
 }
