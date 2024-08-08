@@ -151,7 +151,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
             //ArrayList<JSONObject> rowData = new ArrayList<JSONObject>(); // Declare rowData before executeQuery
             int count = 0;
             while (rs.next()) {
-                String data = rs.getString("data");
+                rs.getString("data");
                 // Process the data as needed
                 //rowData.add(new JSONObject(data)); // Parse the data string into a JSONObject
                 count++;

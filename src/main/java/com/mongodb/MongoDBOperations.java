@@ -6,6 +6,7 @@ import com.mongodb.client.model.CreateCollectionOptions;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.Projections;
 
 import org.bson.Document;
 import org.json.JSONObject;
@@ -133,10 +134,11 @@ public class MongoDBOperations implements DatabaseOperations {
     @Override
     public int queryDocumentsById(String collectionName, String id) {
         MongoCollection<Document> collection = database.getCollection(collectionName);
-        FindIterable<Document> documents = collection.find(Filters.eq("indexAttrs", id));
+        FindIterable<Document> documents = collection.find(Filters.eq("indexAttrs", id)).projection(Projections.fields(Projections.exclude("indexAttrs")));
         int count = 0;
         for (Document document : documents) {
             // Process the document data as needed
+            document.clear();
             count++;
         }
         return count;
@@ -166,6 +168,7 @@ public class MongoDBOperations implements DatabaseOperations {
         int count = 0;
         for (Document document : documents) {
             // Process the document data as needed
+            document.clear();
             count++;
         }
         return count;
