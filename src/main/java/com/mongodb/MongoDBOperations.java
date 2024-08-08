@@ -39,7 +39,7 @@ public class MongoDBOperations implements DatabaseOperations {
             database.getCollection(collectionName).drop();
             database.createCollection(collectionName);
         }
-        database.getCollection("indexed").createIndex(Indexes.ascending("indexAttrs"));
+        database.getCollection("indexed").createIndex(Indexes.ascending("targets"));
     }
 
     @Override
@@ -48,12 +48,12 @@ public class MongoDBOperations implements DatabaseOperations {
         Random rand = new Random();
         for (String id : objectIds) {
             JSONObject json = new JSONObject();
-            List<String> indexAttrs = new ArrayList<>();
+            List<String> targets = new ArrayList<>();
             for (int i = 0; i < Main.numLinks; i++) {
-                indexAttrs.add(objectIds.get(rand.nextInt(objectIds.size())));
+                targets.add(objectIds.get(rand.nextInt(objectIds.size())));
             }
             json.put("_id", id);
-            json.put("indexAttrs", indexAttrs);
+            json.put("targets", targets);
             documents.add(json);
         }
         return documents;
@@ -96,7 +96,7 @@ public class MongoDBOperations implements DatabaseOperations {
             insertDocs.get(insertDocs.size() - 1).append("data", data);
 
             if (Main.runLookupTest) {
-                for (Object target : json.getJSONArray("indexAttrs").toList()) {
+                for (Object target : json.getJSONArray("targets").toList()) {
                     link.append("_id", json.getString("_id") + "#" + target.toString());
                     link.append("target", target.toString());
                     linkDocs.add(link);
@@ -112,7 +112,7 @@ public class MongoDBOperations implements DatabaseOperations {
                     }
                 }
 
-               insertDocs.get(insertDocs.size() - 1).remove("indexAttrs");
+               insertDocs.get(insertDocs.size() - 1).remove("targets");
             }
 
             if (insertDocs.size() == Main.batchSize) {
@@ -134,7 +134,7 @@ public class MongoDBOperations implements DatabaseOperations {
     @Override
     public int queryDocumentsById(String collectionName, String id) {
         MongoCollection<Document> collection = database.getCollection(collectionName);
-        FindIterable<Document> documents = collection.find(Filters.eq("indexAttrs", id)).projection(Projections.fields(Projections.exclude("indexAttrs")));
+        FindIterable<Document> documents = collection.find(Filters.eq("targets", id)).projection(Projections.fields(Projections.exclude("targets")));
         int count = 0;
         for (Document document : documents) {
             // Process the document data as needed
