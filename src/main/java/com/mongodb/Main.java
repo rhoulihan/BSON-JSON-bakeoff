@@ -197,7 +197,7 @@ public class Main {
             }
             
             long totalQueryTime = System.currentTimeMillis() - startTime;
-            System.out.println(String.format("Total time taken to query related documents for %d ID's %s: %dms", objectIds.size(), type, totalQueryTime));
+            System.out.println(String.format("Total time taken to query related documents for %d ID's with %d element link arrays %s: %dms", objectIds.size(),numLinks, type, totalQueryTime));
             System.out.println(String.format("Total items found: %d", totalItemsFound));
             System.out.println();
         }
