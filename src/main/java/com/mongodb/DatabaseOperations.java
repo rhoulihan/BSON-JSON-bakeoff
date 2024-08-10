@@ -10,6 +10,7 @@ public interface DatabaseOperations {
     List<JSONObject> generateDocuments(List<String> objectIds);
     long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload);
     int queryDocumentsById(String collectionName, String id);
+    int queryDocumentsByIdWithInCondition(String collectionName, JSONObject document);
     int queryDocumentsByIdUsingLookup(String collectionName, String id);
     void close();
 }

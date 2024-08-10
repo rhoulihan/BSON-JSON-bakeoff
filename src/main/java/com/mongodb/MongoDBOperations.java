@@ -111,8 +111,10 @@ public class MongoDBOperations implements DatabaseOperations {
                         linkDocs.clear();
                     }
                 }
+            }
 
-               insertDocs.get(insertDocs.size() - 1).remove("targets");
+            if (Main.runLookupTest || Main.useInCondition) {
+                insertDocs.get(insertDocs.size() - 1).remove("targets");
             }
 
             if (insertDocs.size() == Main.batchSize) {
@@ -139,6 +141,19 @@ public class MongoDBOperations implements DatabaseOperations {
         for (Document document : documents) {
             // Process the document data as needed
             document.clear();
+            count++;
+        }
+        return count;
+    }
+
+    @Override
+    public int queryDocumentsByIdWithInCondition(String collectionName, JSONObject document) {
+        MongoCollection<Document> collection = database.getCollection(collectionName);
+        FindIterable<Document> documents = collection.find(Filters.in("_id", document.getJSONArray("targets"))).projection(Projections.fields(Projections.exclude("targets")));
+        int count = 0;
+        for (Document doc : documents) {
+            // Process the document data as needed
+            doc.clear();
             count++;
         }
         return count;

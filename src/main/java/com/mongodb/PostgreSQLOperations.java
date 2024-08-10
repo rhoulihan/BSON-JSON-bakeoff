@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.bson.json.JsonObject;
 import org.json.JSONObject;
 import org.postgresql.util.PGobject;
 
@@ -178,5 +179,11 @@ public class PostgreSQLOperations implements DatabaseOperations {
     public int queryDocumentsByIdUsingLookup(String collectionName, String id) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'queryDocumentsByIdUsingLookup'");
+    }
+
+    @Override
+    public int queryDocumentsByIdWithInCondition(String collectionName, JSONObject document) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'queryDocumentsByIdWithInCondition'");
     }
 }

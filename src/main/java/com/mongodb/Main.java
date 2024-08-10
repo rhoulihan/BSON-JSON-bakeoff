@@ -14,6 +14,7 @@ public class Main {
     private static boolean runQueryTest = false;
     private static boolean runIndexTest = false;
     static boolean runLookupTest = false;
+    static boolean useInCondition = false;
     public static String jsonType = "json";
     public static Integer batchSize = 100;
     public static Integer numLinks = 10;
@@ -36,8 +37,13 @@ public class Main {
                     break;
                     
                 case "-i":
-                    System.out.println("Including index test...");
-                    runIndexTest = true;
+                    if (Arrays.asList(args).contains("-l")) {
+                        System.out.println("Including $in condition for query test...");
+                        useInCondition = true;
+                    } else {
+                        System.out.println("Including index test...");
+                        runIndexTest = true;
+                    }
                     break;
                     
                 case "-p":
@@ -105,11 +111,18 @@ public class Main {
         initializeDatabase(dbType, dbType.equals("postgresql") ? postgresConnectionString : mongoConnectionString);
 
         for (Integer size : sizes){
-            handleDataInsertions(size);
+
             if (Main.runLookupTest) {
-                Main.runLookupTest = false;
-                handleDataInsertions(size);
+                if (Main.useInCondition) {
+                    Main.runLookupTest = false;
+                    handleDataInsertions(size);
+                    Main.useInCondition = false;
+                } else {
+                    handleDataInsertions(size);
+                    Main.runLookupTest = false;
+                }
             }
+            handleDataInsertions(size);
         }
         
         System.out.println();
@@ -165,19 +178,26 @@ public class Main {
         // Query documents by ID for "indexed" collection
         if (runQueryTest) {
             int totalItemsFound = 0;
-            String type = runLookupTest ? "lookup" : "indexed";
+            String type = runLookupTest ? "using $lookup" : useInCondition ? "using $in condition" : "using multikey index";
             long startTime = System.currentTimeMillis();
 
             if (!runLookupTest) {
-                for (String id : objectIds)
-                    totalItemsFound += dbOperations.queryDocumentsById("indexed", id);
+                if (useInCondition) {
+                    for (JSONObject document : documents) {
+                        totalItemsFound += dbOperations.queryDocumentsByIdWithInCondition("indexed", document);
+                    }
+                } else {
+                    for (String id : objectIds) {
+                        totalItemsFound += dbOperations.queryDocumentsById("indexed", id);
+                    }
+                }
             } else {
                 for (String id : objectIds)
                     totalItemsFound += dbOperations.queryDocumentsByIdUsingLookup("indexed", id);
             }
             
             long totalQueryTime = System.currentTimeMillis() - startTime;
-            System.out.println(String.format("Total time taken to query %d ID's from %s arrays: %dms", objectIds.size(), type, totalQueryTime));
+            System.out.println(String.format("Total time taken to query related documents for %d ID's %s: %dms", objectIds.size(), type, totalQueryTime));
             System.out.println(String.format("Total items found: %d", totalItemsFound));
             System.out.println();
         }
