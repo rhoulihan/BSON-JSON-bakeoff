@@ -364,6 +364,7 @@ Based on typical benchmark results:
 - **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
 - **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
 - **Oracle Overhead**: Direct table insertion in Oracle includes overhead from two separate INSERT operations, foreign key constraints, and multiple commits per batch
+- **Oracle OSON**: The Oracle implementation uses native OSON (Oracle Binary JSON) format via `OracleJsonFactory` to create binary JSON objects in Java, eliminating JSON text parsing overhead on the database side for improved insert performance
 - **Attribute Distribution**: Splitting payloads across multiple attributes can have different impacts depending on the database
 
 ## Oracle 23AI JSON Duality Views
