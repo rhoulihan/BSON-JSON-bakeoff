@@ -292,31 +292,110 @@ The Oracle implementation (`Oracle23AIOperations.java`) creates:
 
 Example structure:
 ```sql
+-- Base document table
 CREATE TABLE indexed_docs (
   doc_id VARCHAR2(100) PRIMARY KEY,
   payload JSON,
-  created_at TIMESTAMP
-);
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) TABLESPACE USERS;
 
+-- Normalized array table with composite primary key
 CREATE TABLE indexed_index_array (
   doc_id VARCHAR2(100),
   array_value VARCHAR2(100),
-  FOREIGN KEY (doc_id) REFERENCES indexed_docs(doc_id)
-);
+  CONSTRAINT pk_indexed_array PRIMARY KEY (doc_id, array_value),
+  CONSTRAINT fk_indexed_doc FOREIGN KEY (doc_id)
+    REFERENCES indexed_docs(doc_id) ON DELETE CASCADE
+) TABLESPACE USERS;
 
-CREATE JSON RELATIONAL DUALITY VIEW indexed_dv AS
-indexed_docs {
-  _id: doc_id,
-  data: payload,
-  indexArray: indexed_index_array [ array_value ]
-};
+-- Index for query performance
+CREATE INDEX idx_indexed_array_value ON indexed_index_array(array_value);
+
+-- JSON Duality View with correct array syntax
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW indexed_dv AS
+SELECT JSON {
+  '_id': d.doc_id,
+  'data': d.payload,
+  'indexArray': [
+    (
+      SELECT JSON {
+        'value': a.array_value
+      }
+      FROM indexed_index_array a WITH INSERT UPDATE DELETE
+      WHERE a.doc_id = d.doc_id
+    )
+  ]
+}
+FROM indexed_docs d WITH INSERT UPDATE DELETE;
 ```
+
+**Important Note on Array Syntax:**
+Arrays in Duality Views require a nested `SELECT JSON` subquery with an explicit `WHERE` clause that joins on the foreign key. This is documented in Oracle's JSON Duality Views specification. The simplified syntax (`table [ {field} ]`) does not work correctly for arrays.
 
 ### Connection Requirements
 
 - Oracle 23AI Free or Enterprise Edition
 - JDBC connection string format: `jdbc:oracle:thin:@host:port/service_name`
 - Default: `jdbc:oracle:thin:@localhost:1521/FREEPDB1`
+
+### Known Issues with Oracle 23AI Free (23.0.0.0.0)
+
+⚠️ **Critical Bug: Array Value Insertion in Duality Views**
+
+We have identified a significant bug in Oracle 23AI Free Release 23.0.0.0.0 that affects JSON Duality Views when inserting documents with array elements that contain duplicate values across different parent documents.
+
+**Problem Description:**
+
+When inserting JSON documents through a Duality View, Oracle incorrectly treats array values as globally unique, despite the underlying table having a composite PRIMARY KEY `(doc_id, array_value)`. This causes array elements to be silently dropped during insertion if the same value already exists in any other document.
+
+**Expected Behavior:**
+```sql
+-- Insert 3 documents with overlapping array values
+doc1: {_id: "test1", indexArray: [{value: "1"}, {value: "2"}, {value: "3"}]}
+doc2: {_id: "test2", indexArray: [{value: "2"}, {value: "3"}, {value: "4"}]}
+doc3: {_id: "test3", indexArray: [{value: "3"}, {value: "4"}, {value: "5"}]}
+
+-- Should result in 9 rows in indexed_index_array table:
+test1 -> 1, 2, 3
+test2 -> 2, 3, 4  (values 2 and 3 reused)
+test3 -> 3, 4, 5  (values 3 and 4 reused)
+```
+
+**Actual Behavior:**
+```sql
+-- Only 5 rows inserted, with values silently dropped:
+test1 -> 1, 2, 3  ✓ (first document works correctly)
+test2 -> 4        ✗ (values 2 and 3 silently dropped)
+test3 -> 5        ✗ (values 3 and 4 silently dropped)
+```
+
+**Impact on Benchmarks:**
+- With 1,000 documents × 10 array elements = expected 10,000 rows
+- Actual result: ~1,000 rows (only ~10% inserted correctly)
+- Only ~30% of documents receive any array data
+- First documents get complete arrays; later documents get partial/no arrays
+- Query results: Oracle returns ~1,000 items vs MongoDB's correct ~10,000
+
+**Reproduction:**
+
+A test case demonstrating this bug is included in `src/test/java/com/mongodb/TestDualityView.java`. Run it with:
+
+```bash
+javac -cp target/insertTest-1.0-jar-with-dependencies.jar src/test/java/com/mongodb/TestDualityView.java
+java -cp "src/test/java:target/insertTest-1.0-jar-with-dependencies.jar" com.mongodb.TestDualityView
+```
+
+**Status:**
+
+This bug has been confirmed using the correct Duality View syntax as documented in Oracle's JSON Relational Duality Views specification. The issue appears to be in Oracle's implementation of array handling within Duality Views, not in our code or schema design.
+
+**Workaround:**
+
+For accurate benchmarking, consider inserting directly into the underlying relational tables instead of using the Duality View, or use Oracle 23AI Enterprise Edition if available (bug status unknown on Enterprise Edition).
+
+**Reference:**
+- Commit: `389b353` - "Fix Duality View syntax and confirm Oracle 23AI array insertion bug"
+- Test case: `src/test/java/com/mongodb/TestDualityView.java`
 
 ## Customization
 
@@ -325,18 +404,22 @@ indexed_docs {
 To add support for additional databases:
 
 1. Create a new class implementing the `DatabaseOperations` interface
-2. Implement all required methods: `initializeDatabase`, `dropAndCreateCollections`, `generateDocuments`, `insertDocuments`, `queryDocumentsById`, etc.
-3. Update `Main.java` to recognize a new command-line flag and instantiate your implementation
+2. Implement all required methods: `initializeDatabase`, `dropAndCreateCollections`, `insertDocuments`, `queryDocumentsById`, `queryDocumentsByIdWithInCondition`, `queryDocumentsByIdUsingLookup`, and `close`
+3. Update `Main.java` to:
+   - Add a new command-line flag for your database
+   - Instantiate your implementation
+   - Add connection string configuration
 
 The `Oracle23AIOperations.java` class provides a complete example of implementing support for a new database system.
 
 ### Modifying Test Data
 
-Document generation occurs in the `generateDocuments` method of each implementation. Customize this method to:
+Document generation occurs in the `generateDocuments` method in `Main.java`. All database implementations use the same document generation logic to ensure fair comparisons. Customize this method to:
 - Add additional fields
 - Change document structure
 - Include specific data patterns
 - Implement different linking strategies
+- Modify the random seed for reproducibility (currently set to 42)
 
 ## Troubleshooting
 
