@@ -18,6 +18,7 @@ This project provides a Java-based benchmark utility that generates synthetic do
 - **PostgreSQL** - JSON and JSONB column types
 - **YugabyteDB** - PostgreSQL-compatible distributed SQL
 - **CockroachDB** - PostgreSQL-compatible distributed SQL
+- **Oracle 23AI** - JSON Duality Views (unified relational and document access)
 
 ## Features
 
@@ -46,7 +47,8 @@ BSON-JSON-bakeoff/
 │   ├── Main.java                    # Entry point and argument parsing
 │   ├── DatabaseOperations.java     # Interface for database operations
 │   ├── MongoDBOperations.java      # MongoDB implementation
-│   └── PostgreSQLOperations.java   # PostgreSQL implementation
+│   ├── PostgreSQLOperations.java   # PostgreSQL implementation
+│   └── Oracle23AIOperations.java   # Oracle 23AI implementation
 ├── pom.xml                          # Maven project configuration
 ├── test.sh                          # Automated testing script with Docker
 └── README.md                        # This file
@@ -66,12 +68,16 @@ cd BSON-JSON-bakeoff
 Before building, edit the connection strings in `src/main/java/com/mongodb/Main.java`:
 
 ```java
-// Line 108-109 in Main.java
+// Lines 112-114 in Main.java
 String mongoConnectionString = "mongodb://localhost:27017";
 String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=YOUR_PASSWORD";
+String oracleConnectionString = "jdbc:oracle:thin:@localhost:1521/FREEPDB1";
 ```
 
-Replace `YOUR_PASSWORD` with your PostgreSQL password, or modify the entire connection string to match your database configuration.
+Replace:
+- `YOUR_PASSWORD` with your PostgreSQL password
+- `FREEPDB1` with your Oracle pluggable database name
+- Modify the entire connection string to match your database configuration
 
 ### 3. Build the Project
 
@@ -97,6 +103,7 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS] [numItems]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-p` | Use PostgreSQL instead of MongoDB | MongoDB |
+| `-o` | Use Oracle 23AI instead of MongoDB | MongoDB |
 | `-j` | Use JSONB instead of JSON (requires `-p`) | JSON |
 | `-i` | Run tests on both indexed and non-indexed tables | Indexed only |
 | `-q [numLinks]` | Run query test with specified number of links | No query test |
@@ -150,7 +157,22 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar -b 500 50000
 ```
 Inserts 50,000 documents using batch size of 500 documents per operation.
 
-#### Example 8: Comprehensive Test
+#### Example 8: Oracle 23AI with JSON Duality Views
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o 20000
+```
+Tests Oracle 23AI using JSON Duality Views, inserting 20,000 documents with automatic bidirectional mapping between relational and document models.
+
+#### Example 9: Oracle 23AI Query Performance Test
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -q 10 -s 4000 -n 200
+```
+Tests Oracle 23AI query performance with JSON Duality Views:
+- 4000B payload across 200 attributes
+- Query tests with 10 linked documents
+- Leverages Oracle's JSON capabilities
+
+#### Example 10: Comprehensive Test
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar -q 20 -n 100 -s 1000,5000,10000 -b 200 25000
 ```
@@ -237,10 +259,64 @@ Total items found: 99939
 Based on typical benchmark results:
 
 1. **MongoDB** generally provides faster insertion times, especially with BSON's native binary format
-2. **Attribute Distribution**: Splitting payloads across multiple attributes can improve performance in MongoDB but may have minimal impact or slightly reduce performance in PostgreSQL
-3. **JSONB vs JSON**: PostgreSQL's JSONB format offers better query performance but slightly slower insertion compared to plain JSON
-4. **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
-5. **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
+2. **Oracle 23AI JSON Duality Views** offers unique advantages:
+   - Unified access to data as both relational tables and JSON documents
+   - ACID transaction guarantees with document-style operations
+   - Automatic normalization/denormalization during writes/reads
+   - Excellent query performance through relational indexes
+   - Best-of-both-worlds approach for applications requiring both document flexibility and relational integrity
+3. **Attribute Distribution**: Splitting payloads across multiple attributes can improve performance in MongoDB but may have minimal impact or slightly reduce performance in PostgreSQL
+4. **JSONB vs JSON**: PostgreSQL's JSONB format offers better query performance but slightly slower insertion compared to plain JSON
+5. **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
+6. **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
+
+## Oracle 23AI JSON Duality Views
+
+Oracle 23AI introduces JSON Duality Views, a revolutionary feature that provides unified access to data through both relational and document paradigms simultaneously.
+
+### What are JSON Duality Views?
+
+JSON Duality Views provide:
+- **Bidirectional Mapping**: Access the same data as relational tables or JSON documents
+- **Automatic Normalization**: Write JSON documents, Oracle automatically normalizes to relational tables
+- **Automatic Denormalization**: Read through views, Oracle automatically assembles JSON documents
+- **ACID Guarantees**: Full transactional integrity for document operations
+- **Performance**: Leverages relational indexes for fast queries
+
+### Implementation Details
+
+The Oracle implementation (`Oracle23AIOperations.java`) creates:
+1. **Base Tables**: Normalized relational tables for document storage
+2. **Duality Views**: JSON views that expose the relational data as documents
+3. **Indexes**: Traditional B-tree indexes on normalized columns
+
+Example structure:
+```sql
+CREATE TABLE indexed_docs (
+  doc_id VARCHAR2(100) PRIMARY KEY,
+  payload JSON,
+  created_at TIMESTAMP
+);
+
+CREATE TABLE indexed_index_array (
+  doc_id VARCHAR2(100),
+  array_value VARCHAR2(100),
+  FOREIGN KEY (doc_id) REFERENCES indexed_docs(doc_id)
+);
+
+CREATE JSON RELATIONAL DUALITY VIEW indexed_dv AS
+indexed_docs {
+  _id: doc_id,
+  data: payload,
+  indexArray: indexed_index_array [ array_value ]
+};
+```
+
+### Connection Requirements
+
+- Oracle 23AI Free or Enterprise Edition
+- JDBC connection string format: `jdbc:oracle:thin:@host:port/service_name`
+- Default: `jdbc:oracle:thin:@localhost:1521/FREEPDB1`
 
 ## Customization
 
@@ -251,6 +327,8 @@ To add support for additional databases:
 1. Create a new class implementing the `DatabaseOperations` interface
 2. Implement all required methods: `initializeDatabase`, `dropAndCreateCollections`, `generateDocuments`, `insertDocuments`, `queryDocumentsById`, etc.
 3. Update `Main.java` to recognize a new command-line flag and instantiate your implementation
+
+The `Oracle23AIOperations.java` class provides a complete example of implementing support for a new database system.
 
 ### Modifying Test Data
 

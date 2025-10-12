@@ -28,14 +28,14 @@ public class Main {
                 case "-j":
                     jsonType = "jsonb";
                     break;
-                    
+
                 case "-l":
                     System.out.println("Including $lookup test...");
                     runLookupTest = true;
                     runSingleAttrTest = false;
                     flag = arg;
                     break;
-                    
+
                 case "-i":
                     if (Arrays.asList(args).contains("-l")) {
                         System.out.println("Including $in condition for query test...");
@@ -45,9 +45,13 @@ public class Main {
                         runIndexTest = true;
                     }
                     break;
-                    
+
                 case "-p":
                     dbType = "postgresql";
+                    break;
+
+                case "-o":
+                    dbType = "oracle23ai";
                     break;
                     
                 case "-q":
@@ -107,8 +111,18 @@ public class Main {
 
         String mongoConnectionString = "mongodb://localhost:27017";
         String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
+        String oracleConnectionString = "jdbc:oracle:thin:@localhost:1521/FREEPDB1";
 
-        initializeDatabase(dbType, dbType.equals("postgresql") ? postgresConnectionString : mongoConnectionString);
+        String connectionString;
+        if (dbType.equals("postgresql")) {
+            connectionString = postgresConnectionString;
+        } else if (dbType.equals("oracle23ai")) {
+            connectionString = oracleConnectionString;
+        } else {
+            connectionString = mongoConnectionString;
+        }
+
+        initializeDatabase(dbType, connectionString);
 
         for (Integer size : sizes){
 
@@ -133,6 +147,8 @@ public class Main {
     private static void initializeDatabase(String dbType, String connectionString) {
         if (dbType.equals("postgresql")) {
             dbOperations = new PostgreSQLOperations();
+        } else if (dbType.equals("oracle23ai")) {
+            dbOperations = new Oracle23AIOperations();
         } else {
             dbOperations = new MongoDBOperations();
         }
