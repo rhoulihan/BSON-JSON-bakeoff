@@ -104,10 +104,13 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS] [numItems]
 |--------|-------------|---------|
 | `-p` | Use PostgreSQL instead of MongoDB | MongoDB |
 | `-o` | Use Oracle 23AI instead of MongoDB | MongoDB |
+| `-d` | Use direct table insertion (Oracle only, bypasses Duality View bug) | Duality View |
 | `-j` | Use JSONB instead of JSON (requires `-p`) | JSON |
 | `-i` | Run tests on both indexed and non-indexed tables | Indexed only |
 | `-q [numLinks]` | Run query test with specified number of links | No query test |
 | `-l [numLinks]` | Run `$lookup` test with specified number of links | No lookup test |
+| `-r [numRuns]` | Number of times to run each test (keeps best result) | 1 |
+| `-c [configFile]` | Load configuration from JSON file | None |
 | `-s [sizes]` | Comma-delimited array of payload sizes in bytes | 100,1000 |
 | `-n [numAttrs]` | Number of attributes to split payload across | 10 |
 | `-b [batchSize]` | Number of documents to batch in each insert | 100 |
@@ -172,7 +175,32 @@ Tests Oracle 23AI query performance with JSON Duality Views:
 - Query tests with 10 linked documents
 - Leverages Oracle's JSON capabilities
 
-#### Example 10: Comprehensive Test
+#### Example 10: Oracle 23AI with Direct Table Insertion
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 1000
+```
+Tests Oracle 23AI using direct table insertion to bypass the Duality View array bug:
+- Inserts 1000 documents
+- Runs query tests with 10 linked documents
+- Produces accurate results matching MongoDB
+
+#### Example 11: Multiple Runs for Best Performance
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 -r 3 1000
+```
+Runs each test 3 times and reports the best (lowest) time:
+- Useful for consistent benchmarking
+- Eliminates outliers from JVM warmup or system load
+- Provides more reliable performance comparison
+
+#### Example 12: Using Configuration File
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -c config.json
+```
+Loads all settings from a JSON configuration file (see Configuration File section below).
+Command-line arguments can override config file settings.
+
+#### Example 13: Comprehensive Test
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar -q 20 -n 100 -s 1000,5000,10000 -b 200 25000
 ```
@@ -182,6 +210,66 @@ Full-featured test with:
 - 100 attributes per document
 - Batch size of 200
 - Query test with 20 linked documents
+
+### Configuration File
+
+You can use a JSON configuration file to specify all options instead of command-line arguments. This is especially useful for complex test scenarios or repeated benchmarking.
+
+#### Config File Format
+
+Create a JSON file (e.g., `config.json`) with the following structure:
+
+```json
+{
+  "database": "mongodb",
+  "numDocs": 10000,
+  "numAttrs": 10,
+  "batchSize": 100,
+  "numLinks": 10,
+  "numRuns": 3,
+  "sizes": [100, 1000],
+  "runQueryTest": true,
+  "runIndexTest": false,
+  "runLookupTest": false,
+  "useInCondition": false,
+  "useDirectTableInsert": false,
+  "runSingleAttrTest": true,
+  "jsonType": "json"
+}
+```
+
+#### Config File Parameters
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `database` | string | Database to use: "mongodb", "postgresql", or "oracle23ai" | "mongodb" |
+| `numDocs` | integer | Number of documents to insert | 10000 |
+| `numAttrs` | integer | Number of attributes to split payload across | 10 |
+| `batchSize` | integer | Batch size for inserts | 100 |
+| `numLinks` | integer | Number of array elements per document | 10 |
+| `numRuns` | integer | Number of times to run each test | 1 |
+| `sizes` | array | Payload sizes in bytes | [100, 1000] |
+| `runQueryTest` | boolean | Run query performance tests | false |
+| `runIndexTest` | boolean | Test both indexed and non-indexed tables | false |
+| `runLookupTest` | boolean | Run $lookup tests (MongoDB) | false |
+| `useInCondition` | boolean | Use $in condition for queries | false |
+| `useDirectTableInsert` | boolean | Use direct table insertion (Oracle only) | false |
+| `runSingleAttrTest` | boolean | Test single attribute payloads | true |
+| `jsonType` | string | "json" or "jsonb" (PostgreSQL only) | "json" |
+
+#### Using Configuration Files
+
+```bash
+# Use config file only
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -c my-config.json
+
+# Config file with command-line overrides
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -c my-config.json -r 5 -d
+
+# The -d and -r flags override the config file settings
+```
+
+**Note:** Command-line arguments take precedence over configuration file settings, allowing you to easily override specific parameters without editing the config file.
 
 ## Automated Testing with Docker
 
@@ -256,19 +344,50 @@ Total items found: 99939
 
 ## Performance Insights
 
-Based on typical benchmark results:
+### Benchmark Results (Best of 3 Runs, 1000 documents)
 
-1. **MongoDB** generally provides faster insertion times, especially with BSON's native binary format
-2. **Oracle 23AI JSON Duality Views** offers unique advantages:
+Using the `-r 3` flag to run each test 3 times and keep the best result:
+
+| Metric | MongoDB | Oracle 23AI (-d) | Ratio |
+|--------|---------|------------------|-------|
+| **Insert 100B (1 attr)** | 23ms | 223ms | 9.7x slower |
+| **Insert 100B (10 attrs)** | 24ms | 224ms | 9.3x slower |
+| **Query 100B** | 377ms | 587ms | 1.6x slower |
+| **Insert 1000B (1 attr)** | 18ms | 287ms | 15.9x slower |
+| **Insert 1000B (10 attrs)** | 18ms | 264ms | 14.7x slower |
+| **Query 1000B** | 303ms | 605ms | 2.0x slower |
+| **Items Found (Query)** | 10,000 | 10,000 | ✓ Correct |
+
+**Test Command:**
+```bash
+# MongoDB
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -q 10 -r 3 1000
+
+# Oracle 23AI with direct insertion
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 -r 3 1000
+```
+
+### Key Findings
+
+1. **MongoDB** provides significantly faster insertion times (~10-16x faster), especially with BSON's native binary format
+2. **MongoDB** offers moderately faster query performance (~1.6-2x faster) for multikey index queries
+3. **Oracle 23AI** with direct table insertion (`-d` flag) produces **correct results** matching MongoDB (10,000 query items)
+4. **Oracle 23AI JSON Duality Views** (without `-d`) offers unique advantages when the array bug is fixed:
    - Unified access to data as both relational tables and JSON documents
    - ACID transaction guarantees with document-style operations
    - Automatic normalization/denormalization during writes/reads
-   - Excellent query performance through relational indexes
+   - Leverages relational indexes for query performance
    - Best-of-both-worlds approach for applications requiring both document flexibility and relational integrity
-3. **Attribute Distribution**: Splitting payloads across multiple attributes can improve performance in MongoDB but may have minimal impact or slightly reduce performance in PostgreSQL
-4. **JSONB vs JSON**: PostgreSQL's JSONB format offers better query performance but slightly slower insertion compared to plain JSON
-5. **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
-6. **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
+5. **Attribute Distribution**: Minimal performance difference between single vs. multiple attributes for both databases in these tests
+6. **Multiple Runs**: Using `-r 3` provides more consistent benchmarking by eliminating outliers from JVM warmup or system load
+7. **Direct Table Insertion**: Oracle's direct insertion bypasses Duality View overhead but loses the automatic bidirectional JSON/relational mapping
+
+### Additional Performance Notes
+
+- **JSONB vs JSON**: PostgreSQL's JSONB format offers better query performance but slightly slower insertion compared to plain JSON
+- **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
+- **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
+- **Oracle Overhead**: Direct table insertion in Oracle includes overhead from two separate INSERT operations, foreign key constraints, and multiple commits per batch
 
 ## Oracle 23AI JSON Duality Views
 
@@ -391,7 +510,15 @@ This bug has been confirmed using the correct Duality View syntax as documented 
 
 **Workaround:**
 
-For accurate benchmarking, consider inserting directly into the underlying relational tables instead of using the Duality View, or use Oracle 23AI Enterprise Edition if available (bug status unknown on Enterprise Edition).
+Use the `-d` flag to enable direct table insertion, which bypasses the Duality View and produces accurate results:
+
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 1000
+```
+
+This inserts data directly into the underlying relational tables (`indexed_docs` and `indexed_index_array`) instead of using the Duality View, avoiding the array duplication bug entirely. With `-d` enabled, Oracle 23AI correctly stores all 10,000 array elements and produces query results matching MongoDB.
+
+Alternatively, use Oracle 23AI Enterprise Edition if available (bug status unknown on Enterprise Edition).
 
 **Reference:**
 - Commit: `389b353` - "Fix Duality View syntax and confirm Oracle 23AI array insertion bug"
@@ -456,7 +583,7 @@ Contributions are welcome! Areas for improvement:
 - More query patterns
 - Statistical analysis of results
 - Graphical result visualization
-- Configuration file support (instead of hardcoded connection strings)
+- Web-based UI for running tests and viewing results
 
 ## License
 

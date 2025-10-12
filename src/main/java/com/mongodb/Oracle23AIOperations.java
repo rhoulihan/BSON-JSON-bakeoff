@@ -167,6 +167,10 @@ public class Oracle23AIOperations implements DatabaseOperations {
 
     @Override
     public long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
+        if (Main.useDirectTableInsert) {
+            return insertDocumentsDirectly(collectionName, documents, dataSize, splitPayload);
+        }
+
         // Using INSERT into duality view - Oracle automatically handles the relational mapping
         String insertSql = "INSERT INTO " + collectionName + "_dv VALUES (?)";
 
@@ -380,6 +384,105 @@ public class Oracle23AIOperations implements DatabaseOperations {
         } catch (SQLException e) {
             System.err.println("Error closing connection:");
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Insert documents directly into base tables, bypassing the Duality View.
+     * This avoids the array value duplication bug in Oracle 23AI Duality Views.
+     */
+    private long insertDocumentsDirectly(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
+        try {
+            // Prepare SQL statements
+            String insertDocSql = "INSERT INTO " + collectionName + "_docs (doc_id, payload) VALUES (?, ?)";
+            String insertArraySql = "INSERT INTO " + collectionName + "_index_array (doc_id, array_value) VALUES (?, ?)";
+
+            PreparedStatement docStmt = connection.prepareStatement(insertDocSql);
+            PreparedStatement arrayStmt = connection.prepareStatement(insertArraySql);
+
+            byte[] bytes = new byte[dataSize];
+            rand.nextBytes(bytes);
+
+            // Prepare payload structure
+            JSONObject payloadJson = new JSONObject();
+            if (splitPayload) {
+                int length = dataSize / Main.numAttrs;
+                for (int i = 0; i < Main.numAttrs; i++) {
+                    int start = i * length;
+                    payloadJson.put("data" + i,
+                        java.util.Base64.getEncoder().encodeToString(
+                            Arrays.copyOfRange(bytes, start, start + length)
+                        )
+                    );
+                }
+            } else {
+                payloadJson.put("data",
+                    java.util.Base64.getEncoder().encodeToString(bytes)
+                );
+            }
+
+            long startTime = System.currentTimeMillis();
+
+            // First, insert all documents
+            int docBatchCount = 0;
+            for (JSONObject doc : documents) {
+                String docId = doc.getString("_id");
+                docStmt.setString(1, docId);
+                docStmt.setString(2, payloadJson.toString());
+                docStmt.addBatch();
+                docBatchCount++;
+
+                if (docBatchCount >= Main.batchSize) {
+                    docStmt.executeBatch();
+                    connection.commit();
+                    docBatchCount = 0;
+                }
+            }
+            if (docBatchCount > 0) {
+                docStmt.executeBatch();
+                connection.commit();
+            }
+
+            // Then, insert all array elements (after parent keys are committed)
+            int arrayBatchCount = 0;
+            for (JSONObject doc : documents) {
+                String docId = doc.getString("_id");
+                JSONArray indexArray = doc.getJSONArray("targets");
+
+                for (int i = 0; i < indexArray.length(); i++) {
+                    arrayStmt.setString(1, docId);
+                    arrayStmt.setString(2, indexArray.getString(i));
+                    arrayStmt.addBatch();
+                    arrayBatchCount++;
+
+                    if (arrayBatchCount >= Main.batchSize) {
+                        arrayStmt.executeBatch();
+                        connection.commit();
+                        arrayBatchCount = 0;
+                    }
+                }
+            }
+            if (arrayBatchCount > 0) {
+                arrayStmt.executeBatch();
+                connection.commit();
+            }
+
+            docStmt.close();
+            arrayStmt.close();
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            System.out.println("  [Direct table insertion completed]");
+            return elapsed;
+
+        } catch (SQLException e) {
+            System.err.println("Error inserting documents directly:");
+            e.printStackTrace();
+            try {
+                connection.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+            return -1;
         }
     }
 }

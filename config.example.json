@@ -1,0 +1,16 @@
+{
+  "database": "mongodb",
+  "numDocs": 10000,
+  "numAttrs": 10,
+  "batchSize": 100,
+  "numLinks": 10,
+  "numRuns": 3,
+  "sizes": [100, 1000],
+  "runQueryTest": true,
+  "runIndexTest": false,
+  "runLookupTest": false,
+  "useInCondition": false,
+  "useDirectTableInsert": false,
+  "runSingleAttrTest": true,
+  "jsonType": "json"
+}
