@@ -16,6 +16,7 @@ import org.json.JSONObject;
 
 import oracle.sql.json.OracleJsonFactory;
 import oracle.sql.json.OracleJsonObject;
+import oracle.jdbc.OracleType;
 
 /**
  * Oracle 23AI implementation using JSON Duality Views.
@@ -59,6 +60,22 @@ public class Oracle23AIOperations implements DatabaseOperations {
         } catch (SQLException e) {
             System.err.println("Database connection failed.");
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Convert a JSON string to Oracle's native OSON format.
+     * This avoids the overhead of parsing JSON text on the database side.
+     */
+    private OracleJsonObject createOsonObject(String jsonString) {
+        try {
+            // Parse JSON string into Oracle's native binary JSON format (OSON)
+            java.io.StringReader reader = new java.io.StringReader(jsonString);
+            return jsonFactory.createJsonTextValue(reader).asJsonObject();
+        } catch (Exception e) {
+            System.err.println("Error creating OSON object: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -218,8 +235,10 @@ public class Oracle23AIOperations implements DatabaseOperations {
                 }
                 dualityDoc.put("indexArray", transformedArray);
 
-                // Insert through duality view
-                stmt.setString(1, dualityDoc.toString());
+                // Insert through duality view using native OSON format
+                // This avoids JSON text parsing overhead on the database side
+                OracleJsonObject osonDoc = createOsonObject(dualityDoc.toString());
+                stmt.setObject(1, osonDoc, OracleType.JSON);
                 stmt.addBatch();
                 batchCount++;
 
@@ -428,7 +447,9 @@ public class Oracle23AIOperations implements DatabaseOperations {
             for (JSONObject doc : documents) {
                 String docId = doc.getString("_id");
                 docStmt.setString(1, docId);
-                docStmt.setString(2, payloadJson.toString());
+                // Use native OSON format for better performance
+                OracleJsonObject osonPayload = createOsonObject(payloadJson.toString());
+                docStmt.setObject(2, osonPayload, OracleType.JSON);
                 docStmt.addBatch();
                 docBatchCount++;
 
