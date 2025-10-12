@@ -109,7 +109,7 @@ public class Main {
         if (dbType.equals("postgresql"))
             System.out.println(String.format("Using %s attribute type for data.", jsonType));
 
-        String mongoConnectionString = "mongodb://localhost:27017";
+        String mongoConnectionString = "mongodb://172.19.16.1:27017";
         String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
         String oracleConnectionString = "jdbc:oracle:thin:system/G0_4w4y!@172.19.16.1:1521/FREEPDB1";
 

@@ -29,12 +29,7 @@
             <dependency>
                 <groupId>org.mongodb</groupId>
                 <artifactId>mongodb-driver-sync</artifactId>
-                <version>5.1.2</version>
-            </dependency>
-            <dependency>
-                <groupId>org.mongodb</groupId>
-                <artifactId>mongodb-driver-core</artifactId>
-                <version>5.1.2</version>
+                <version>5.5.1</version>
             </dependency>
             <!-- https://mvnrepository.com/artifact/com.oracle.database.jdbc/ojdbc11 -->
             <dependency>
