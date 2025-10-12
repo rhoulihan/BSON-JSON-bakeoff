@@ -68,23 +68,30 @@ public class Oracle23AIOperations implements DatabaseOperations {
             Statement stmt = connection.createStatement();
 
             for (String collectionName : collectionNames) {
-                // Drop existing duality view and tables
+                // Drop existing duality view first (must drop before tables)
                 try {
                     stmt.execute("DROP VIEW " + collectionName + "_dv");
+                    System.out.println("Dropped view " + collectionName + "_dv");
                 } catch (SQLException e) {
                     // Ignore if view doesn't exist
+                    System.out.println("View " + collectionName + "_dv does not exist");
+                }
+
+                // Drop tables with CASCADE to remove any dependencies
+                try {
+                    stmt.execute("DROP TABLE " + collectionName + "_index_array CASCADE CONSTRAINTS");
+                    System.out.println("Dropped table " + collectionName + "_index_array");
+                } catch (SQLException e) {
+                    // Ignore if table doesn't exist
+                    System.out.println("Table " + collectionName + "_index_array does not exist");
                 }
 
                 try {
                     stmt.execute("DROP TABLE " + collectionName + "_docs CASCADE CONSTRAINTS");
+                    System.out.println("Dropped table " + collectionName + "_docs");
                 } catch (SQLException e) {
                     // Ignore if table doesn't exist
-                }
-
-                try {
-                    stmt.execute("DROP TABLE " + collectionName + "_index_array CASCADE CONSTRAINTS");
-                } catch (SQLException e) {
-                    // Ignore if table doesn't exist
+                    System.out.println("Table " + collectionName + "_docs does not exist");
                 }
 
                 // Create base document table
@@ -120,18 +127,28 @@ public class Oracle23AIOperations implements DatabaseOperations {
                     stmt.execute(createArrayIndex);
                 }
 
-                // Create JSON Duality View
-                // This view presents the relational data as JSON documents
+                // Create JSON Duality View with correct array syntax
+                // Arrays require nested SELECT JSON with WHERE clause for foreign key join
                 String createDualityView = String.format(
                     "CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW %s_dv AS " +
-                    "%s_docs @INSERT @UPDATE @DELETE {" +
-                    "  _id: doc_id, " +
-                    "  data: payload, " +
-                    "  indexArray: %s_index_array @INSERT @UPDATE @DELETE [ {value: array_value} ]" +
-                    "}",
+                    "SELECT JSON {" +
+                    "  '_id': d.doc_id, " +
+                    "  'data': d.payload, " +
+                    "  'indexArray': [" +
+                    "    (" +
+                    "      SELECT JSON {" +
+                    "        'value': a.array_value" +
+                    "      }" +
+                    "      FROM %s_index_array a WITH INSERT UPDATE DELETE " +
+                    "      WHERE a.doc_id = d.doc_id" +
+                    "    )" +
+                    "  ]" +
+                    "} " +
+                    "FROM %s_docs d WITH INSERT UPDATE DELETE",
                     collectionName, collectionName, collectionName
                 );
                 stmt.execute(createDualityView);
+                System.out.println("Created duality view " + collectionName + "_dv with correct array syntax");
             }
 
             connection.commit();
@@ -180,10 +197,8 @@ public class Oracle23AIOperations implements DatabaseOperations {
 
             long startTime = System.currentTimeMillis();
             int batchCount = 0;
-            int docCount = 0;
 
             for (JSONObject doc : documents) {
-                docCount++;
                 // Build complete JSON document for duality view
                 JSONObject dualityDoc = new JSONObject();
                 dualityDoc.put("_id", doc.getString("_id"));
@@ -199,81 +214,24 @@ public class Oracle23AIOperations implements DatabaseOperations {
                 }
                 dualityDoc.put("indexArray", transformedArray);
 
-                // Debug: Print first document to verify structure
-                if (docCount == 1) {
-                    System.out.println("DEBUG: First document JSON structure:");
-                    System.out.println(dualityDoc.toString(2));
-                }
-
                 // Insert through duality view
                 stmt.setString(1, dualityDoc.toString());
-
-                // DEBUG: Try inserting one at a time instead of batching
-                if (docCount <= 5 || (docCount % 100) == 0) {
-                    System.out.println("DEBUG: Inserting document " + docCount + " individually");
-                    try {
-                        stmt.executeUpdate();
-                        connection.commit();
-                        System.out.println("  SUCCESS");
-                    } catch (SQLException e) {
-                        System.err.println("  FAILED: " + e.getMessage() + " (ErrorCode: " + e.getErrorCode() + ")");
-                        connection.rollback();
-                    }
-                } else {
-                    stmt.addBatch();
-                    batchCount++;
-                }
+                stmt.addBatch();
+                batchCount++;
 
                 // Execute batch when reaching batch size
                 if (batchCount >= Main.batchSize) {
-                    try {
-                        int[] results = stmt.executeBatch();
-                        connection.commit();
-                        int successCount = 0;
-                        for (int result : results) {
-                            if (result > 0 || result == Statement.SUCCESS_NO_INFO) {
-                                successCount++;
-                            }
-                        }
-                        System.out.println("Batch " + (docCount / Main.batchSize) + ": Successfully inserted " + successCount + " out of " + results.length + " documents");
-                    } catch (SQLException e) {
-                        System.err.println("Batch insert error at document " + docCount + ": " + e.getMessage());
-                        System.err.println("SQL State: " + e.getSQLState());
-                        System.err.println("Error Code: " + e.getErrorCode());
-                        if (e.getNextException() != null) {
-                            System.err.println("Next exception: " + e.getNextException().getMessage());
-                        }
-                        connection.rollback();
-                        // Try to continue with next batch
-                    }
+                    stmt.executeBatch();
+                    connection.commit();
                     batchCount = 0;
                 }
             }
 
             // Execute remaining batch
             if (batchCount > 0) {
-                try {
-                    int[] results = stmt.executeBatch();
-                    connection.commit();
-                    int successCount = 0;
-                    for (int result : results) {
-                        if (result > 0 || result == Statement.SUCCESS_NO_INFO) {
-                            successCount++;
-                        }
-                    }
-                    System.out.println("Final batch: Successfully inserted " + successCount + " out of " + results.length + " documents");
-                } catch (SQLException e) {
-                    System.err.println("Final batch insert error: " + e.getMessage());
-                    System.err.println("SQL State: " + e.getSQLState());
-                    System.err.println("Error Code: " + e.getErrorCode());
-                    if (e.getNextException() != null) {
-                        System.err.println("Next exception: " + e.getNextException().getMessage());
-                    }
-                    connection.rollback();
-                }
+                stmt.executeBatch();
+                connection.commit();
             }
-
-            System.out.println("Total documents processed: " + docCount);
 
             stmt.close();
             return System.currentTimeMillis() - startTime;
