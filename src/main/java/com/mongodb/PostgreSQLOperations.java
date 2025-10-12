@@ -66,17 +66,6 @@ public class PostgreSQLOperations implements DatabaseOperations {
     }
 
     @Override
-    public List<JSONObject> generateDocuments(List<String> objectIds) {
-        List<JSONObject> documents = new ArrayList<>();
-        for (String id : objectIds) {
-            JSONObject json = new JSONObject();
-            json.put("id", id);
-            documents.add(json);
-        }
-        return documents;
-    }
-
-    @Override
     public long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
         String sql = "INSERT INTO " + collectionName + " (data, indexarray) VALUES (?, ?)";
         
@@ -116,7 +105,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
                 json.remove("payload");
                 
                 for (int i = 0; i < 10; i++) {
-                    indexAttrs.add(documents.get(rand.nextInt(documents.size())).getString("id"));
+                    indexAttrs.add(documents.get(rand.nextInt(documents.size())).getString("_id"));
                 }
                 
                 setIdx++;

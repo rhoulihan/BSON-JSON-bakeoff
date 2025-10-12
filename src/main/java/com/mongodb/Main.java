@@ -164,6 +164,29 @@ public class Main {
         return ids;
     }
 
+    private static List<JSONObject> generateDocuments(List<String> objectIds) {
+        List<JSONObject> documents = new ArrayList<>();
+        java.util.Random rand = new java.util.Random(42); // Fixed seed for reproducibility
+
+        for (String id : objectIds) {
+            JSONObject json = new JSONObject();
+            json.put("_id", id);
+
+            // Generate unique values for array
+            java.util.Set<String> uniqueTargets = new java.util.HashSet<>();
+            while (uniqueTargets.size() < numLinks && uniqueTargets.size() < objectIds.size()) {
+                uniqueTargets.add(objectIds.get(rand.nextInt(objectIds.size())));
+            }
+
+            // Convert to list and add to document
+            List<String> targets = new ArrayList<>(uniqueTargets);
+            json.put("targets", targets);
+            documents.add(json);
+        }
+
+        return documents;
+    }
+
     private static void handleDataInsertions(Integer dataSize) {
         List<String> collectionNames = new ArrayList<>();
         
@@ -175,7 +198,7 @@ public class Main {
         dbOperations.dropAndCreateCollections(collectionNames);
 
         List<String> objectIds = generateObjectIds(numDocs);
-        List<JSONObject> documents = dbOperations.generateDocuments(objectIds);
+        List<JSONObject> documents = generateDocuments(objectIds);
 
         if (runSingleAttrTest) {
             for (String collectionName : collectionNames) {

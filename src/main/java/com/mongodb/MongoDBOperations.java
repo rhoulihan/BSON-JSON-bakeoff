@@ -43,23 +43,6 @@ public class MongoDBOperations implements DatabaseOperations {
     }
 
     @Override
-    public List<JSONObject> generateDocuments(List<String> objectIds) {
-        List<JSONObject> documents = new ArrayList<>();
-        Random rand = new Random();
-        for (String id : objectIds) {
-            JSONObject json = new JSONObject();
-            List<String> targets = new ArrayList<>();
-            for (int i = 0; i < Main.numLinks; i++) {
-                targets.add(objectIds.get(rand.nextInt(objectIds.size())));
-            }
-            json.put("_id", id);
-            json.put("targets", targets);
-            documents.add(json);
-        }
-        return documents;
-    }
-
-    @Override
     public long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
         MongoCollection<Document> collection = database.getCollection(collectionName);
         MongoCollection<Document> links = null;
