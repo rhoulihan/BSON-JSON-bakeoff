@@ -344,43 +344,19 @@ Total items found: 99939
 
 ## Performance Insights
 
-### Benchmark Results (Best of 3 Runs, 1000 documents)
+Based on typical benchmark results:
 
-Using the `-r 3` flag to run each test 3 times and keep the best result:
-
-| Metric | MongoDB | Oracle 23AI (-d) | Ratio |
-|--------|---------|------------------|-------|
-| **Insert 100B (1 attr)** | 23ms | 223ms | 9.7x slower |
-| **Insert 100B (10 attrs)** | 24ms | 224ms | 9.3x slower |
-| **Query 100B** | 377ms | 587ms | 1.6x slower |
-| **Insert 1000B (1 attr)** | 18ms | 287ms | 15.9x slower |
-| **Insert 1000B (10 attrs)** | 18ms | 264ms | 14.7x slower |
-| **Query 1000B** | 303ms | 605ms | 2.0x slower |
-| **Items Found (Query)** | 10,000 | 10,000 | ✓ Correct |
-
-**Test Command:**
-```bash
-# MongoDB
-java -jar target/insertTest-1.0-jar-with-dependencies.jar -q 10 -r 3 1000
-
-# Oracle 23AI with direct insertion
-java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 -r 3 1000
-```
-
-### Key Findings
-
-1. **MongoDB** provides significantly faster insertion times (~10-16x faster), especially with BSON's native binary format
-2. **MongoDB** offers moderately faster query performance (~1.6-2x faster) for multikey index queries
-3. **Oracle 23AI** with direct table insertion (`-d` flag) produces **correct results** matching MongoDB (10,000 query items)
-4. **Oracle 23AI JSON Duality Views** (without `-d`) offers unique advantages when the array bug is fixed:
+1. **MongoDB** generally provides faster insertion times, especially with BSON's native binary format
+2. **MongoDB** typically offers faster query performance for multikey index queries
+3. **Oracle 23AI** with direct table insertion (`-d` flag) produces correct results matching MongoDB
+4. **Oracle 23AI JSON Duality Views** offers unique advantages:
    - Unified access to data as both relational tables and JSON documents
    - ACID transaction guarantees with document-style operations
    - Automatic normalization/denormalization during writes/reads
    - Leverages relational indexes for query performance
    - Best-of-both-worlds approach for applications requiring both document flexibility and relational integrity
-5. **Attribute Distribution**: Minimal performance difference between single vs. multiple attributes for both databases in these tests
-6. **Multiple Runs**: Using `-r 3` provides more consistent benchmarking by eliminating outliers from JVM warmup or system load
-7. **Direct Table Insertion**: Oracle's direct insertion bypasses Duality View overhead but loses the automatic bidirectional JSON/relational mapping
+5. **Multiple Runs**: Using `-r` flag provides more consistent benchmarking by eliminating outliers from JVM warmup or system load
+6. **Direct Table Insertion**: Oracle's direct insertion (`-d`) bypasses Duality View overhead but loses the automatic bidirectional JSON/relational mapping
 
 ### Additional Performance Notes
 
@@ -388,6 +364,7 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 -r 3 1000
 - **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
 - **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
 - **Oracle Overhead**: Direct table insertion in Oracle includes overhead from two separate INSERT operations, foreign key constraints, and multiple commits per batch
+- **Attribute Distribution**: Splitting payloads across multiple attributes can have different impacts depending on the database
 
 ## Oracle 23AI JSON Duality Views
 
