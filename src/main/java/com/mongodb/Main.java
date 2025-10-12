@@ -111,7 +111,7 @@ public class Main {
 
         String mongoConnectionString = "mongodb://localhost:27017";
         String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
-        String oracleConnectionString = "jdbc:oracle:thin:@localhost:1521/FREEPDB1";
+        String oracleConnectionString = "jdbc:oracle:thin:system/G0_4w4y!@172.19.16.1:1521/FREEPDB1";
 
         String connectionString;
         if (dbType.equals("postgresql")) {

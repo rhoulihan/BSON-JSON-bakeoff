@@ -94,7 +94,7 @@ public class Oracle23AIOperations implements DatabaseOperations {
                     "  doc_id VARCHAR2(100) PRIMARY KEY, " +
                     "  payload JSON, " +
                     "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
-                    ")",
+                    ") TABLESPACE USERS",
                     collectionName
                 );
                 stmt.execute(createDocsTable);
@@ -104,9 +104,10 @@ public class Oracle23AIOperations implements DatabaseOperations {
                     "CREATE TABLE %s_index_array (" +
                     "  doc_id VARCHAR2(100), " +
                     "  array_value VARCHAR2(100), " +
+                    "  CONSTRAINT pk_%s_array PRIMARY KEY (doc_id, array_value), " +
                     "  CONSTRAINT fk_%s_doc FOREIGN KEY (doc_id) REFERENCES %s_docs(doc_id) ON DELETE CASCADE" +
-                    ")",
-                    collectionName, collectionName, collectionName
+                    ") TABLESPACE USERS",
+                    collectionName, collectionName, collectionName, collectionName
                 );
                 stmt.execute(createIndexArrayTable);
 
@@ -126,7 +127,7 @@ public class Oracle23AIOperations implements DatabaseOperations {
                     "%s_docs @INSERT @UPDATE @DELETE {" +
                     "  _id: doc_id, " +
                     "  data: payload, " +
-                    "  indexArray: %s_index_array @INSERT @UPDATE @DELETE [ array_value ]" +
+                    "  indexArray: %s_index_array @INSERT @UPDATE @DELETE [ {value: array_value} ]" +
                     "}",
                     collectionName, collectionName, collectionName
                 );
@@ -154,10 +155,14 @@ public class Oracle23AIOperations implements DatabaseOperations {
             JSONObject json = new JSONObject();
             json.put("id", id);
 
-            // Generate index array with random references
+            // Generate index array with random references (ensure unique values)
+            java.util.Set<String> uniqueValues = new java.util.HashSet<>();
+            while (uniqueValues.size() < Main.numLinks && uniqueValues.size() < objectIds.size()) {
+                uniqueValues.add(objectIds.get(rand.nextInt(objectIds.size())));
+            }
             JSONArray indexArray = new JSONArray();
-            for (int i = 0; i < Main.numLinks; i++) {
-                indexArray.put(objectIds.get(rand.nextInt(objectIds.size())));
+            for (String value : uniqueValues) {
+                indexArray.put(value);
             }
             json.put("indexArray", indexArray);
 
@@ -205,9 +210,15 @@ public class Oracle23AIOperations implements DatabaseOperations {
                 dualityDoc.put("_id", doc.getString("id"));
                 dualityDoc.put("data", payloadJson);
 
-                // Add index array
+                // Add index array - transform to array of objects
                 JSONArray indexArray = doc.getJSONArray("indexArray");
-                dualityDoc.put("indexArray", indexArray);
+                JSONArray transformedArray = new JSONArray();
+                for (int i = 0; i < indexArray.length(); i++) {
+                    JSONObject arrayItem = new JSONObject();
+                    arrayItem.put("value", indexArray.getString(i));
+                    transformedArray.put(arrayItem);
+                }
+                dualityDoc.put("indexArray", transformedArray);
 
                 // Insert through duality view
                 stmt.setString(1, dualityDoc.toString());
