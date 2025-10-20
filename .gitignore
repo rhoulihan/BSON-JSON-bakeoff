@@ -15,3 +15,10 @@ buildNumber.properties
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# Configuration files with credentials
+config.properties
+
+# Performance reports
+performance-comparison-report.pdf
+performance-comparison-report.md

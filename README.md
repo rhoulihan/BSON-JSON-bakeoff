@@ -19,6 +19,7 @@ This project provides a Java-based benchmark utility that generates synthetic do
 - **YugabyteDB** - PostgreSQL-compatible distributed SQL
 - **CockroachDB** - PostgreSQL-compatible distributed SQL
 - **Oracle 23AI** - JSON Duality Views (unified relational and document access)
+- **Oracle 23AI (JCT)** - JSON Collection Tables (native JSON document storage)
 
 ## Features
 
@@ -48,7 +49,8 @@ BSON-JSON-bakeoff/
 │   ├── DatabaseOperations.java     # Interface for database operations
 │   ├── MongoDBOperations.java      # MongoDB implementation
 │   ├── PostgreSQLOperations.java   # PostgreSQL implementation
-│   └── Oracle23AIOperations.java   # Oracle 23AI implementation
+│   ├── Oracle23AIOperations.java   # Oracle 23AI Duality Views implementation
+│   └── OracleJCT.java               # Oracle JSON Collection Tables implementation
 ├── pom.xml                          # Maven project configuration
 ├── test.sh                          # Automated testing script with Docker
 └── README.md                        # This file
@@ -63,21 +65,33 @@ git clone https://github.com/rhoulihan/BSON-JSON-bakeoff.git
 cd BSON-JSON-bakeoff
 ```
 
-### 2. Configure Database Connection
+### 2. Configure Database Connections
 
-Before building, edit the connection strings in `src/main/java/com/mongodb/Main.java`:
+Create a `config.properties` file with your database connection strings:
 
-```java
-// Lines 112-114 in Main.java
-String mongoConnectionString = "mongodb://localhost:27017";
-String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=YOUR_PASSWORD";
-String oracleConnectionString = "jdbc:oracle:thin:@localhost:1521/FREEPDB1";
+```bash
+cp config.properties.example config.properties
+```
+
+Then edit `config.properties` with your actual credentials:
+
+```properties
+# MongoDB Connection
+mongodb.connection.string=mongodb://localhost:27017
+
+# PostgreSQL Connection
+postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=YOUR_PASSWORD
+
+# Oracle Connection
+oracle.connection.string=jdbc:oracle:thin:system/YOUR_PASSWORD@localhost:1521/FREEPDB1
 ```
 
 Replace:
-- `YOUR_PASSWORD` with your PostgreSQL password
+- `YOUR_PASSWORD` with your actual database passwords
+- Host addresses and ports to match your database configuration
 - `FREEPDB1` with your Oracle pluggable database name
-- Modify the entire connection string to match your database configuration
+
+**Note**: The `config.properties` file is excluded from git to keep your credentials secure. Never commit this file to version control.
 
 ### 3. Build the Project
 
@@ -103,8 +117,9 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS] [numItems]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-p` | Use PostgreSQL instead of MongoDB | MongoDB |
-| `-o` | Use Oracle 23AI instead of MongoDB | MongoDB |
-| `-d` | Use direct table insertion (Oracle only, bypasses Duality View bug) | Duality View |
+| `-o` | Use Oracle 23AI Duality Views instead of MongoDB | MongoDB |
+| `-oj` | Use Oracle JSON Collection Tables instead of MongoDB | MongoDB |
+| `-d` | Use direct table insertion (Oracle Duality Views only, bypasses bug) | Duality View |
 | `-j` | Use JSONB instead of JSON (requires `-p`) | JSON |
 | `-i` | Run tests on both indexed and non-indexed tables | Indexed only |
 | `-q [numLinks]` | Run query test with specified number of links | No query test |
@@ -184,7 +199,25 @@ Tests Oracle 23AI using direct table insertion to bypass the Duality View array 
 - Runs query tests with 10 linked documents
 - Produces accurate results matching MongoDB
 
-#### Example 11: Multiple Runs for Best Performance
+#### Example 11: Oracle JSON Collection Tables
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -oj 20000
+```
+Tests Oracle 23AI using native JSON Collection Tables:
+- 20,000 documents
+- Direct JSON document storage
+- Simpler schema than Duality Views
+
+#### Example 12: Oracle JSON Collection Tables with Query Test
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -oj -q 10 -s 4000 -n 200
+```
+Tests Oracle JSON Collection Tables with query performance:
+- 4000B payload across 200 attributes
+- Query tests with 10 linked documents
+- Uses Oracle JSON path expressions for queries
+
+#### Example 13: Multiple Runs for Best Performance
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar -o -d -q 10 -r 3 1000
 ```
@@ -193,14 +226,14 @@ Runs each test 3 times and reports the best (lowest) time:
 - Eliminates outliers from JVM warmup or system load
 - Provides more reliable performance comparison
 
-#### Example 12: Using Configuration File
+#### Example 14: Using Configuration File
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar -c config.json
 ```
 Loads all settings from a JSON configuration file (see Configuration File section below).
 Command-line arguments can override config file settings.
 
-#### Example 13: Comprehensive Test
+#### Example 15: Comprehensive Test
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar -q 20 -n 100 -s 1000,5000,10000 -b 200 25000
 ```
@@ -242,7 +275,7 @@ Create a JSON file (e.g., `config.json`) with the following structure:
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `database` | string | Database to use: "mongodb", "postgresql", or "oracle23ai" | "mongodb" |
+| `database` | string | Database to use: "mongodb", "postgresql", "oracle23ai", or "oraclejct" | "mongodb" |
 | `numDocs` | integer | Number of documents to insert | 10000 |
 | `numAttrs` | integer | Number of attributes to split payload across | 10 |
 | `batchSize` | integer | Batch size for inserts | 100 |
@@ -502,6 +535,72 @@ Alternatively, use Oracle 23AI Enterprise Edition if available (bug status unkno
 - Commit: `389b353` - "Fix Duality View syntax and confirm Oracle 23AI array insertion bug"
 - Test case: `src/test/java/com/mongodb/TestDualityView.java`
 
+## Oracle JSON Collection Tables
+
+Oracle 23AI also provides JSON Collection Tables (accessible via the `-oj` flag), which offer a simpler, more direct approach to JSON document storage compared to Duality Views.
+
+### What are JSON Collection Tables?
+
+JSON Collection Tables provide:
+- **Native JSON Storage**: Store and retrieve JSON documents directly without relational mapping
+- **Simpler Schema**: No need to design normalized relational tables
+- **Direct JDBC Access**: Insert and query JSON documents using standard JDBC operations
+- **Oracle JSON Support**: Leverage Oracle's native JSON data type and query capabilities
+- **ACID Guarantees**: Full transactional integrity like all Oracle tables
+
+### Key Differences from Duality Views
+
+| Feature | JSON Collection Tables (`-oj`) | Duality Views (`-o`) |
+|---------|-------------------------------|----------------------|
+| **Schema Design** | Automatic - just create the collection | Manual - design relational tables + views |
+| **Insertion** | Direct JSON document insert | Insert through view, Oracle normalizes |
+| **Storage** | JSON documents in single table | Normalized across multiple relational tables |
+| **Queries** | JSON path expressions | SQL joins on relational tables |
+| **Complexity** | Simple, document-focused | Complex, hybrid relational/document |
+| **Use Case** | Pure document workloads | Unified relational + document access |
+
+### Implementation Details
+
+The Oracle JCT implementation (`OracleJCT.java`) uses:
+1. **JSON Collection Tables**: Created with `CREATE JSON COLLECTION TABLE` statement
+2. **Native OSON Format**: Binary JSON format for efficient storage and querying
+3. **Search Indexes**: Oracle JSON search indexes for array queries
+4. **JSON Path Queries**: Uses `JSON_EXISTS` and `JSON_VALUE` for document queries
+
+Example structure:
+```sql
+-- Create JSON collection table
+CREATE JSON COLLECTION TABLE indexed;
+
+-- Create search index for JSON queries
+CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON;
+
+-- Query documents using JSON path expressions
+SELECT data FROM indexed
+WHERE JSON_EXISTS(data, '$?(@.targets[*] == $id)' PASSING '123' AS "id");
+```
+
+### When to Use JSON Collection Tables vs Duality Views
+
+**Use JSON Collection Tables (`-oj`) when:**
+- You have pure document-oriented workloads
+- You want MongoDB-like simplicity in Oracle
+- You don't need relational access to the data
+- You want to avoid the Duality View array insertion bug
+
+**Use Duality Views (`-o` with `-d`) when:**
+- You need both relational and document access to the same data
+- You want to leverage existing relational tools and queries
+- You need complex joins across normalized tables
+- You're willing to manage a more complex schema
+
+### Connection Requirements
+
+Same as Oracle 23AI Duality Views:
+- Oracle 23AI Free or Enterprise Edition
+- JDBC connection string format: `jdbc:oracle:thin:@host:port/service_name`
+- Default: `jdbc:oracle:thin:@localhost:1521/FREEPDB1`
+
 ## Customization
 
 ### Adding New Database Implementations
@@ -513,7 +612,8 @@ To add support for additional databases:
 3. Update `Main.java` to:
    - Add a new command-line flag for your database
    - Instantiate your implementation
-   - Add connection string configuration
+   - Add logic to read the connection string from `config.properties`
+4. Add your database connection string to `config.properties.example` and `config.properties`
 
 The `Oracle23AIOperations.java` class provides a complete example of implementing support for a new database system.
 
@@ -552,7 +652,16 @@ mvn clean install -U
 ### PostgreSQL Password Authentication
 
 **Problem**: Password authentication fails
-**Solution**: Update the connection string in `Main.java` or configure PostgreSQL to use trust authentication for localhost
+**Solution**: Update the connection string in `config.properties` or configure PostgreSQL to use trust authentication for localhost
+
+### Configuration File Not Found
+
+**Problem**: `ERROR: Could not load config.properties file`
+**Solution**: Create `config.properties` from the template:
+```bash
+cp config.properties.example config.properties
+```
+Then edit it with your actual database credentials
 
 ## Contributing
 

@@ -1,0 +1,14 @@
+# Database Connection Configuration
+# Copy this file to config.properties and update with your actual credentials
+
+# MongoDB Connection
+# Format: mongodb://[host]:[port]
+mongodb.connection.string=mongodb://localhost:27017
+
+# PostgreSQL Connection
+# Format: jdbc:postgresql://[host]:[port]/[database]?user=[username]&password=[password]
+postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=YOUR_PASSWORD
+
+# Oracle Connection
+# Format: jdbc:oracle:thin:[username]/[password]@[host]:[port]/[service_name]
+oracle.connection.string=jdbc:oracle:thin:system/YOUR_PASSWORD@localhost:1521/FREEPDB1

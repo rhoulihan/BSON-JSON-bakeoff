@@ -3,7 +3,10 @@ package com.mongodb;
 import java.util.List;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Properties;
 import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.json.JSONObject;
@@ -69,6 +72,10 @@ public class Main {
 
                 case "-o":
                     dbType = "oracle23ai";
+                    break;
+
+                case "-oj":
+                    dbType = "oraclejct";
                     break;
 
                 case "-d":
@@ -149,17 +156,21 @@ public class Main {
         if (dbType.equals("postgresql"))
             System.out.println(String.format("Using %s attribute type for data.", jsonType));
 
-        String mongoConnectionString = "mongodb://172.19.16.1:27017";
-        String postgresConnectionString = "jdbc:postgresql://localhost:5432/test?user=postgres&password=G0_4w4y!";
-        String oracleConnectionString = "jdbc:oracle:thin:system/G0_4w4y!@172.19.16.1:1521/FREEPDB1";
-
+        // Load database connection strings from config.properties
+        Properties dbConfig = loadDatabaseConfig();
         String connectionString;
         if (dbType.equals("postgresql")) {
-            connectionString = postgresConnectionString;
-        } else if (dbType.equals("oracle23ai")) {
-            connectionString = oracleConnectionString;
+            connectionString = dbConfig.getProperty("postgresql.connection.string");
+        } else if (dbType.equals("oracle23ai") || dbType.equals("oraclejct")) {
+            connectionString = dbConfig.getProperty("oracle.connection.string");
         } else {
-            connectionString = mongoConnectionString;
+            connectionString = dbConfig.getProperty("mongodb.connection.string");
+        }
+
+        if (connectionString == null || connectionString.isEmpty()) {
+            System.err.println("ERROR: Connection string not found in config.properties for database: " + dbType);
+            System.err.println("Please create config.properties from config.properties.example");
+            return;
         }
 
         initializeDatabase(dbType, connectionString);
@@ -189,6 +200,8 @@ public class Main {
             dbOperations = new PostgreSQLOperations();
         } else if (dbType.equals("oracle23ai")) {
             dbOperations = new Oracle23AIOperations();
+        } else if (dbType.equals("oraclejct")) {
+            dbOperations = new OracleJCT();
         } else {
             dbOperations = new MongoDBOperations();
         }
@@ -407,6 +420,26 @@ public class Main {
             System.err.println("Error parsing config file: " + e.getMessage());
             return defaultDbType;
         }
+    }
+
+    /**
+     * Load database connection configuration from config.properties file.
+     * Returns a Properties object with connection strings for MongoDB, PostgreSQL, and Oracle.
+     */
+    private static Properties loadDatabaseConfig() {
+        Properties properties = new Properties();
+        String configPath = "config.properties";
+
+        try (InputStream input = new FileInputStream(configPath)) {
+            properties.load(input);
+        } catch (IOException e) {
+            System.err.println("ERROR: Could not load config.properties file.");
+            System.err.println("Please create config.properties from config.properties.example");
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+        }
+
+        return properties;
     }
 }
 

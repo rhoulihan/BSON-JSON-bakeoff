@@ -7,6 +7,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.Projections;
+import com.mongodb.WriteConcern;
 
 import org.bson.Document;
 import org.json.JSONObject;
@@ -86,7 +87,7 @@ public class MongoDBOperations implements DatabaseOperations {
                     link = new Document();
                     if (linkDocs.size() == Main.batchSize) {
                         try {
-                            links.insertMany(linkDocs, new InsertManyOptions().ordered(false));
+                            links.withWriteConcern(WriteConcern.JOURNALED).insertMany(linkDocs, new InsertManyOptions().ordered(false));
                         } catch (MongoBulkWriteException e) {
                             dupCount += e.getWriteErrors().size();
                         }
@@ -101,13 +102,13 @@ public class MongoDBOperations implements DatabaseOperations {
             }
 
             if (insertDocs.size() == Main.batchSize) {
-                collection.insertMany(insertDocs);
+                collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs);
                 insertDocs.clear();
             }
         }
 
         if (!insertDocs.isEmpty()) {
-            collection.insertMany(insertDocs);
+            collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs);
         }
 
         if (Main.runLookupTest) {
