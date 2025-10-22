@@ -2,20 +2,20 @@
 description: Benchmark MongoDB vs Oracle JSON Collection Tables
 ---
 
-Run comprehensive benchmarks comparing MongoDB and Oracle JSON Collection Tables.
+Run comprehensive benchmarks comparing MongoDB and Oracle JSON Collection Tables, and generate an HTML report with visualizations.
 
 **Test Configuration:**
 - Documents: 10,000
 - Payload sizes: 100B and 1000B
 - Attributes: 1 and 10 (single attribute vs multi-attribute split)
 - Runs: 3 (keeps best result)
-- Databases: MongoDB and Oracle JSON Collection Tables
+- Batch size: 500 (optimized)
+- Databases: MongoDB and Oracle JSON Collection Tables (with and without search index)
 
 **Steps:**
 1. Ensure the project is built (mvn clean package)
-2. Run MongoDB benchmark with specified parameters
-3. Run Oracle JSON Collection Tables benchmark with same parameters
-4. Compare results
+2. Run all benchmarks and generate report using Python script
+3. Open the generated HTML report
 
 Please execute the following:
 
@@ -25,18 +25,20 @@ cd /mnt/c/Users/rickh/OneDrive/Documents/GitHub/BSON-JSON-bakeoff
 mvn clean package
 ```
 
-Then run MongoDB benchmark:
+Then run the report generator (this will run all benchmarks and create the HTML report):
 ```bash
-java -jar target/insertTest-1.0-jar-with-dependencies.jar -s 100,1000 -n 10 -r 3 10000
+python3 generate_report.py
 ```
 
-Then run Oracle JSON Collection Tables benchmark:
-```bash
-java -jar target/insertTest-1.0-jar-with-dependencies.jar -oj -s 100,1000 -n 10 -r 3 10000
-```
+The script will:
+- Run MongoDB benchmark with parameters: `-s 100,1000 -n 10 -r 3 -b 500 10000`
+- Run Oracle JCT benchmark WITHOUT search index: `-oj -s 100,1000 -n 10 -r 3 -b 500 10000`
+- Run Oracle JCT benchmark WITH search index: `-oj -i -s 100,1000 -n 10 -r 3 -b 500 10000`
+- Parse all results into standardized JSON format
+- Generate an HTML report with interactive charts
 
-**Parameters:**
-- `-s 100,1000`: Payload sizes to test
-- `-n 10`: Number of attributes (tests both 1 and 10 attributes)
-- `-r 3`: Number of runs (keeps best result)
-- `10000`: Number of documents to insert
+**Output Files:**
+- `benchmark_results.json` - Standardized JSON results
+- `benchmark_report.html` - Interactive HTML report with graphs
+
+After completion, open `benchmark_report.html` in a web browser to view the full report with visualizations.

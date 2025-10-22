@@ -60,9 +60,19 @@ public class OracleJCT implements DatabaseOperations {
                 throw new UnsupportedOperationException("Lookup test not yet implemented for OracleJCT");
             }
             for (String name : collectionNames) {
+                // Drop search index if it exists (must be done before dropping table)
+                if (name.equals("indexed")) {
+                    try {
+                        stmt.execute("DROP SEARCH INDEX idx_targets");
+                        System.out.println("Dropped search index idx_targets");
+                    } catch (SQLException e) {
+                        // Ignore if index doesn't exist
+                    }
+                }
+
                 // Drop table if exists
                 try {
-                    stmt.execute("DROP TABLE " + name);
+                    stmt.execute("DROP TABLE " + name + " CASCADE CONSTRAINTS PURGE");
                     System.out.println("Dropped table " + name);
                 } catch (SQLException e) {
                     // Ignore if table doesn't exist
@@ -74,10 +84,8 @@ public class OracleJCT implements DatabaseOperations {
                 System.out.println("Created JSON collection table " + name);
             }
 
-            // Create index on 'targets' array for the indexed collection
-            // COMMENTED OUT FOR TESTING PERFORMANCE WITHOUT INDEX
-            /*
-            if (collectionNames.contains("indexed")) {
+            // Create index on 'targets' array for the indexed collection (only when runIndexTest is true)
+            if (Main.runIndexTest && collectionNames.contains("indexed")) {
                 try {
                     stmt.execute("CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON");
                     System.out.println("Created search index on indexed collection");
@@ -85,7 +93,6 @@ public class OracleJCT implements DatabaseOperations {
                     System.err.println("Warning: Could not create search index: " + e.getMessage());
                 }
             }
-            */
 
             connection.commit();
             stmt.close();

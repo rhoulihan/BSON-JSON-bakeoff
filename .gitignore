@@ -22,3 +22,5 @@ config.properties
 # Performance reports
 performance-comparison-report.pdf
 performance-comparison-report.md
+benchmark_results.json
+benchmark_report.html

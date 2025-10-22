@@ -19,7 +19,7 @@ public class Main {
     private static List<Integer> sizes = new ArrayList<>(Arrays.asList(new Integer[]{100,1000}));
 
     private static boolean runQueryTest = false;
-    private static boolean runIndexTest = false;
+    static boolean runIndexTest = false;
     static boolean runLookupTest = false;
     static boolean useInCondition = false;
     public static String jsonType = "json";
