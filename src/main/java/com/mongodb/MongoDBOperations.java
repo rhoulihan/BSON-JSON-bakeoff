@@ -102,13 +102,13 @@ public class MongoDBOperations implements DatabaseOperations {
             }
 
             if (insertDocs.size() == Main.batchSize) {
-                collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs);
+                collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs, new InsertManyOptions().ordered(true));
                 insertDocs.clear();
             }
         }
 
         if (!insertDocs.isEmpty()) {
-            collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs);
+            collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs, new InsertManyOptions().ordered(true));
         }
 
         if (Main.runLookupTest) {

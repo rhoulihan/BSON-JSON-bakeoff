@@ -75,6 +75,8 @@ public class OracleJCT implements DatabaseOperations {
             }
 
             // Create index on 'targets' array for the indexed collection
+            // COMMENTED OUT FOR TESTING PERFORMANCE WITHOUT INDEX
+            /*
             if (collectionNames.contains("indexed")) {
                 try {
                     stmt.execute("CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON");
@@ -83,6 +85,7 @@ public class OracleJCT implements DatabaseOperations {
                     System.err.println("Warning: Could not create search index: " + e.getMessage());
                 }
             }
+            */
 
             connection.commit();
             stmt.close();
