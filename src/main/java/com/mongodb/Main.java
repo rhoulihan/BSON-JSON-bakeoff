@@ -78,6 +78,10 @@ public class Main {
                     dbType = "oraclejct";
                     break;
 
+                case "-oj2":
+                    dbType = "oraclejct2";
+                    break;
+
                 case "-d":
                     System.out.println("Using direct table insertion (Oracle only)...");
                     useDirectTableInsert = true;
@@ -161,12 +165,13 @@ public class Main {
         String connectionString;
         if (dbType.equals("postgresql")) {
             connectionString = dbConfig.getProperty("postgresql.connection.string");
-        } else if (dbType.equals("oracle23ai") || dbType.equals("oraclejct")) {
+        } else if (dbType.equals("oracle23ai") || dbType.equals("oraclejct") || dbType.equals("oraclejct2")) {
             connectionString = dbConfig.getProperty("oracle.connection.string");
         } else {
             connectionString = dbConfig.getProperty("mongodb.connection.string");
         }
 
+        connectionString = System.getProperty("conn", connectionString);
         if (connectionString == null || connectionString.isEmpty()) {
             System.err.println("ERROR: Connection string not found in config.properties for database: " + dbType);
             System.err.println("Please create config.properties from config.properties.example");
@@ -202,6 +207,8 @@ public class Main {
             dbOperations = new Oracle23AIOperations();
         } else if (dbType.equals("oraclejct")) {
             dbOperations = new OracleJCT();
+        } else if (dbType.equals("oraclejct2")) {
+            dbOperations = new OracleJCT2();
         } else {
             dbOperations = new MongoDBOperations();
         }

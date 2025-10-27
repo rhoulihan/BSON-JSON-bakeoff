@@ -7,9 +7,13 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.Projections;
-import com.mongodb.WriteConcern;
 
+import org.bson.BsonBinaryWriter;
 import org.bson.Document;
+import org.bson.codecs.Codec;
+import org.bson.codecs.EncoderContext;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.io.BasicOutputBuffer;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -71,14 +75,14 @@ public class MongoDBOperations implements DatabaseOperations {
         } else {
             data.append("data", bytes);
         }
-
-        int dupCount = 0;
-        long startTime = System.currentTimeMillis();
+        long dupCount = 0;
+        List<Document> bsonDocuments = new ArrayList<Document>();
         for (JSONObject json : documents) {
-
-            insertDocs.add(Document.parse(json.toString()));
-            insertDocs.get(insertDocs.size() - 1).append("data", data);
-
+            bsonDocuments.add(Document.parse(json.toString()));
+            bsonDocuments.get(bsonDocuments.size() - 1).append("data", data);
+            if (Main.runLookupTest || Main.useInCondition) {
+                bsonDocuments.get(bsonDocuments.size() - 1).remove("targets");
+            }
             if (Main.runLookupTest) {
                 for (Object target : json.getJSONArray("targets").toList()) {
                     link.append("_id", json.getString("_id") + "#" + target.toString());
@@ -87,7 +91,7 @@ public class MongoDBOperations implements DatabaseOperations {
                     link = new Document();
                     if (linkDocs.size() == Main.batchSize) {
                         try {
-                            links.withWriteConcern(WriteConcern.JOURNALED).insertMany(linkDocs, new InsertManyOptions().ordered(false));
+                            links.insertMany(linkDocs, new InsertManyOptions().ordered(false));
                         } catch (MongoBulkWriteException e) {
                             dupCount += e.getWriteErrors().size();
                         }
@@ -96,25 +100,43 @@ public class MongoDBOperations implements DatabaseOperations {
                     }
                 }
             }
-
-            if (Main.runLookupTest || Main.useInCondition) {
-                insertDocs.get(insertDocs.size() - 1).remove("targets");
-            }
-
+        }
+        
+        long startTime = System.currentTimeMillis();
+        int ct = 0;
+        for (Document json : bsonDocuments) {
+            byte[] bson = toBsonBytes(json);
+            if (ct++ < 10)
+                System.out.println("Binding: " + bson.length);
+            insertDocs.add(json);
             if (insertDocs.size() == Main.batchSize) {
-                collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs, new InsertManyOptions().ordered(true));
+                collection.insertMany(insertDocs);
                 insertDocs.clear();
             }
         }
 
         if (!insertDocs.isEmpty()) {
-            collection.withWriteConcern(WriteConcern.JOURNALED).insertMany(insertDocs, new InsertManyOptions().ordered(true));
+            collection.insertMany(insertDocs);
         }
 
         if (Main.runLookupTest) {
             System.out.println(String.format("Duplicates found: %d", dupCount));
         }
         return System.currentTimeMillis() - startTime;
+    }
+    
+    public static byte[] toBsonBytes(Document doc) {
+        CodecRegistry registry = MongoClientSettings.getDefaultCodecRegistry();
+        Codec<Document> codec = registry.get(Document.class);
+
+        BasicOutputBuffer buffer = new BasicOutputBuffer();
+        try (BsonBinaryWriter writer = new BsonBinaryWriter(buffer)) {
+            codec.encode(writer, doc, EncoderContext.builder()
+                    // set true if this is a collectible document (e.g., it may have _id)
+                    .isEncodingCollectibleDocument(true)
+                    .build());
+        }
+        return buffer.toByteArray();
     }
 
     @Override
