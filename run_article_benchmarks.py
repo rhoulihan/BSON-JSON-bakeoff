@@ -15,6 +15,7 @@ import json
 import re
 from datetime import datetime
 import sys
+import time
 
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
@@ -38,14 +39,70 @@ MULTI_ATTR_TESTS = [
     {"size": 4000, "attrs": 200, "desc": "200 attributes × 20B = 4000B"},
 ]
 
-# Databases to test
+# Databases to test - with service management info
 DATABASES = [
-    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": ""},
-    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p"},
-    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j"},
-    {"name": "Oracle JCT (no index)", "key": "oracle_no_index", "flags": "-oj"},
-    {"name": "Oracle JCT (with index)", "key": "oracle_with_index", "flags": "-oj -i"},
+    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": "", "service": "mongod", "db_type": "mongodb"},
+    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "Oracle JCT (no index)", "key": "oracle_no_index", "flags": "-oj", "service": "oracle-free-26ai", "db_type": "oracle"},
+    {"name": "Oracle JCT (with index)", "key": "oracle_with_index", "flags": "-oj -i", "service": "oracle-free-26ai", "db_type": "oracle"},
 ]
+
+def stop_all_databases():
+    """Stop all databases before starting."""
+    print("Stopping all databases...")
+    for service in ["mongod", "postgresql-17", "oracle-free-26ai"]:
+        subprocess.run(f"sudo systemctl stop {service}", shell=True, capture_output=True)
+    time.sleep(2)
+    print("✓ All databases stopped\n")
+
+def start_database(service_name, db_type):
+    """Start a database service and wait for it to be ready."""
+    print(f"  Starting {service_name}...", end=" ", flush=True)
+    result = subprocess.run(f"sudo systemctl start {service_name}", shell=True, capture_output=True)
+
+    if result.returncode != 0:
+        print(f"✗ Failed to start")
+        return False
+
+    # Wait for database to be ready
+    max_wait = 30
+    wait_interval = 2
+
+    for i in range(max_wait // wait_interval):
+        time.sleep(wait_interval)
+
+        if db_type == "mongodb":
+            check = subprocess.run("mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' 2>&1",
+                                   shell=True, capture_output=True, text=True)
+            if "1" in check.stdout:
+                print(f"✓ Ready (took {(i+1)*wait_interval}s)")
+                return True
+
+        elif db_type == "postgresql":
+            check = subprocess.run("sudo -u postgres psql -c 'SELECT 1;' 2>&1",
+                                   shell=True, capture_output=True, text=True)
+            if check.returncode == 0:
+                print(f"✓ Ready (took {(i+1)*wait_interval}s)")
+                return True
+
+        elif db_type == "oracle":
+            # Check for ora_pmon process indicating database is running
+            check = subprocess.run("ps aux | grep ora_pmon | grep -v grep",
+                                   shell=True, capture_output=True, text=True)
+            if check.stdout.strip():
+                print(f"✓ Ready (took {(i+1)*wait_interval}s)")
+                return True
+
+    print(f"✗ Timeout waiting for database")
+    return False
+
+def stop_database(service_name):
+    """Stop a database service."""
+    print(f"  Stopping {service_name}...", end=" ", flush=True)
+    subprocess.run(f"sudo systemctl stop {service_name}", shell=True, capture_output=True)
+    time.sleep(2)
+    print("✓ Stopped")
 
 def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size):
     """Run a single benchmark test."""
@@ -108,9 +165,25 @@ def run_test_suite(test_configs, test_type):
     print(f"{'='*80}")
 
     results = {}
+    current_service = None
 
     for db in DATABASES:
         print(f"\n--- {db['name']} ---")
+
+        # Start database if different from current
+        if db['service'] != current_service:
+            # Stop previous database if any
+            if current_service:
+                stop_database(current_service)
+
+            # Start new database
+            if not start_database(db['service'], db['db_type']):
+                print(f"  ERROR: Failed to start {db['service']}, skipping tests")
+                results[db['key']] = [{"success": False, "error": "Database failed to start"} for _ in test_configs]
+                continue
+
+            current_service = db['service']
+
         results[db['key']] = []
 
         for test in test_configs:
@@ -131,6 +204,10 @@ def run_test_suite(test_configs, test_type):
             else:
                 results[db['key']].append(result)
                 print(f"✗ {result.get('error', 'Failed')}")
+
+    # Stop the last database
+    if current_service:
+        stop_database(current_service)
 
     return results
 
@@ -183,6 +260,10 @@ def main():
     print(f"Runs per test: {NUM_RUNS} (best time reported)")
     print(f"Batch size: {BATCH_SIZE}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+
+    # Stop all databases first to ensure clean start
+    stop_all_databases()
 
     # Run single-attribute tests
     single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE")
