@@ -65,9 +65,9 @@ def start_database(service_name, db_type):
         print(f"✗ Failed to start")
         return False
 
-    # Wait for database to be ready
-    max_wait = 30
-    wait_interval = 2
+    # Wait for database to be ready - Oracle needs more time
+    max_wait = 120 if db_type == "oracle" else 30  # Oracle can take 60-90 seconds
+    wait_interval = 3 if db_type == "oracle" else 2
 
     for i in range(max_wait // wait_interval):
         time.sleep(wait_interval)
@@ -87,14 +87,16 @@ def start_database(service_name, db_type):
                 return True
 
         elif db_type == "oracle":
-            # Check for ora_pmon process indicating database is running
-            check = subprocess.run("ps aux | grep ora_pmon | grep -v grep",
-                                   shell=True, capture_output=True, text=True)
-            if check.stdout.strip():
+            # Check db_pmon process (Oracle 23ai uses db_ prefix instead of ora_)
+            # If pmon is running, the database is ready for connections
+            pmon_check = subprocess.run("ps -ef | grep db_pmon_FREE | grep -v grep",
+                                       shell=True, capture_output=True, text=True)
+
+            if pmon_check.stdout.strip():
                 print(f"✓ Ready (took {(i+1)*wait_interval}s)")
                 return True
 
-    print(f"✗ Timeout waiting for database")
+    print(f"✗ Timeout waiting for database (waited {max_wait}s)")
     return False
 
 def stop_database(service_name):
