@@ -1,0 +1,121 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║          3-PLATFORM DOCUMENT STORAGE BENCHMARK - QUICK REFERENCE             ║
+║                     MongoDB vs Oracle JCT vs PostgreSQL                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                     SINGLE-ATTRIBUTE RESULTS (10K docs)                      │
+├──────────┬────────────┬────────────┬────────────┬─────────────┬──────────────┤
+│ Payload  │  MongoDB   │ Oracle JCT │  PG-JSON   │  PG-JSONB   │    Winner    │
+├──────────┼────────────┼────────────┼────────────┼─────────────┼──────────────┤
+│   10B    │    300ms   │    285ms   │    196ms   │    221ms    │   PG-JSON ✓  │
+│  200B    │    300ms   │    286ms   │    757ms   │   1,720ms   │   Oracle  ✓  │
+│   1KB    │    320ms   │    365ms   │   3,846ms  │   7,241ms   │   MongoDB ✓  │
+│   2KB    │    324ms   │    363ms   │   8,087ms  │  13,201ms   │   MongoDB ✓  │
+│   4KB    │    353ms   │    471ms   │  16,297ms  │  25,192ms   │   MongoDB ✓  │
+└──────────┴────────────┴────────────┴────────────┴─────────────┴──────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-ATTRIBUTE RESULTS (10K docs)                        │
+├──────────┬────────────┬────────────┬────────────┬─────────────┬──────────────┤
+│  Config  │  MongoDB   │ Oracle JCT │  PG-JSON   │  PG-JSONB   │    Winner    │
+├──────────┼────────────┼────────────┼────────────┼─────────────┼──────────────┤
+│  10×1B   │    305ms   │    296ms   │    234ms   │    273ms    │   PG-JSON ✓  │
+│ 10×20B   │    310ms   │    319ms   │    792ms   │   1,685ms   │   MongoDB ✓  │
+│ 50×20B   │    389ms   │    418ms   │   4,321ms  │   8,133ms   │   MongoDB ✓  │
+│ 100×20B  │    554ms   │    620ms   │   8,604ms  │  15,476ms   │   MongoDB ✓  │
+│ 200×20B  │    829ms   │    744ms   │  17,361ms  │  30,196ms   │   Oracle  ✓  │
+└──────────┴────────────┴────────────┴────────────┴─────────────┴──────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            PERFORMANCE DEGRADATION                           ║
+║                         (How well does it scale?)                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Single-Attribute (10B → 4KB):
+  MongoDB:     300ms → 353ms    (1.18x)  ⭐⭐⭐⭐⭐ EXCELLENT
+  Oracle JCT:  285ms → 471ms    (1.65x)  ⭐⭐⭐⭐  VERY GOOD
+  PG-JSON:     196ms → 16,297ms (83.1x)  ❌      CATASTROPHIC
+  PG-JSONB:    221ms → 25,192ms (114x)   ❌      CATASTROPHIC
+
+Multi-Attribute (10×1B → 200×20B):
+  Oracle JCT:  296ms → 744ms    (2.51x)  ⭐⭐⭐⭐⭐ EXCELLENT
+  MongoDB:     305ms → 829ms    (2.72x)  ⭐⭐⭐⭐⭐ EXCELLENT
+  PG-JSON:     234ms → 17,361ms (74.2x)  ❌      CATASTROPHIC
+  PG-JSONB:    273ms → 30,196ms (111x)   ❌      CATASTROPHIC
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                             CRITICAL FINDINGS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. POSTGRESQL TOAST CLIFF AT 2KB
+   ├─ Performance collapses above 2KB due to compression/out-of-line storage
+   ├─ At 200B: Competitive (757ms)
+   ├─ At 2KB: 10x worse (8,087ms)
+   └─ At 4KB: 46x worse than MongoDB (16,297ms)
+
+2. JSONB IS SLOWER THAN JSON FOR WRITES
+   ├─ Must parse + convert to binary format
+   ├─ 4KB single-attr: JSONB 55% slower than JSON
+   └─ 200-attr multi: JSONB 74% slower than JSON
+
+3. ORACLE WINS MULTI-ATTRIBUTE TESTS
+   ├─ 200 attributes: Oracle 744ms vs MongoDB 829ms (11% faster!)
+   ├─ OSON encoding optimized for fragmented documents
+   └─ Surprise finding - beats MongoDB at its own game
+
+4. MONGODB'S FLAT CURVE
+   ├─ 10B: 300ms
+   ├─ 4KB: 353ms (only 18% slower!)
+   └─ Most consistent performance across all scenarios
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                               RECOMMENDATIONS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+USE MONGODB WHEN:
+  ✓ Documents exceed 2KB
+  ✓ Variable document sizes
+  ✓ Pure document workload
+  ✓ Horizontal scaling needed
+  ✓ Most versatile choice
+
+USE ORACLE JCT WHEN:
+  ✓ Already using Oracle
+  ✓ Need SQL access to documents
+  ✓ Many attributes (200+)
+  ✓ Enterprise features required
+  ✓ Best for fragmented documents
+
+USE POSTGRESQL WHEN:
+  ✓ Documents are tiny (<200B)
+  ✓ Primarily relational with occasional JSON
+  ✓ Read-heavy workload
+  ✓ Low write volume
+
+AVOID POSTGRESQL WHEN:
+  ✗ Documents exceed 2KB
+  ✗ High-volume inserts
+  ✗ Pure document storage
+  ✗ Many attributes per document
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                FINAL VERDICT                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+🥇 MONGODB BSON - Overall Winner
+   Best for most document workloads, proven at scale, flattest curve
+
+🥈 ORACLE JCT - Strong Alternative  
+   Excellent for Oracle shops, surprisingly good for multi-attribute docs
+
+🥉 POSTGRESQL JSONB - Niche Use Only
+   Only suitable for tiny documents in hybrid relational systems
+
+BOTTOM LINE: Use purpose-built document databases (MongoDB/Oracle JCT) for
+document workloads. PostgreSQL's TOAST mechanism makes it unsuitable for
+documents >2KB despite its relational excellence.
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  Test Date: October 30, 2025  |  10K docs/test  |  3 runs  |  Batch 500    ║
+╚══════════════════════════════════════════════════════════════════════════════╝

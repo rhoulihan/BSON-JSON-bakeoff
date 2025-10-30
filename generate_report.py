@@ -61,12 +61,12 @@ def generate_report_data():
 
     # Test configuration
     jar_path = "target/insertTest-1.0-jar-with-dependencies.jar"
-    test_params = "-s 100,1000 -n 10 -r 3 -b 500 10000"
+    test_params = "-s 100,1000 -n 10 -r 3 -b 500 100000"
 
     report_data = {
         "timestamp": datetime.now().isoformat(),
         "configuration": {
-            "documents": 10000,
+            "documents": 100000,
             "payload_sizes": [100, 1000],
             "attributes": [1, 10],
             "runs": 3,
@@ -107,6 +107,28 @@ def generate_report_data():
     else:
         print(f"Oracle (with index) benchmark failed with return code {return_code}")
         report_data["results"]["oracle_with_index"] = []
+
+    # Run PostgreSQL with JSON
+    postgresql_json_output, return_code = run_benchmark(
+        f"java -jar {jar_path} -p {test_params}",
+        "PostgreSQL with JSON"
+    )
+    if return_code == 0:
+        report_data["results"]["postgresql_json"] = parse_results(postgresql_json_output)
+    else:
+        print(f"PostgreSQL (JSON) benchmark failed with return code {return_code}")
+        report_data["results"]["postgresql_json"] = []
+
+    # Run PostgreSQL with JSONB
+    postgresql_jsonb_output, return_code = run_benchmark(
+        f"java -jar {jar_path} -p -j {test_params}",
+        "PostgreSQL with JSONB"
+    )
+    if return_code == 0:
+        report_data["results"]["postgresql_jsonb"] = parse_results(postgresql_jsonb_output)
+    else:
+        print(f"PostgreSQL (JSONB) benchmark failed with return code {return_code}")
+        report_data["results"]["postgresql_jsonb"] = []
 
     return report_data
 

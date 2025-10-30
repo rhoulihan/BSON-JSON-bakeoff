@@ -1,0 +1,94 @@
+{
+  "timestamp": "2025-10-30T16:22:21.429997",
+  "configuration": {
+    "documents": 10000,
+    "runs": 3,
+    "batch_size": 500
+  },
+  "oracle_jct": {
+    "single_attribute": [
+      {
+        "success": true,
+        "time_ms": 285,
+        "throughput": 35087.72,
+        "size": 10,
+        "attrs": 1,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 286,
+        "throughput": 34965.03,
+        "size": 200,
+        "attrs": 1,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 365,
+        "throughput": 27397.26,
+        "size": 1000,
+        "attrs": 1,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 363,
+        "throughput": 27548.21,
+        "size": 2000,
+        "attrs": 1,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 471,
+        "throughput": 21231.42,
+        "size": 4000,
+        "attrs": 1,
+        "num_docs": 10000
+      }
+    ],
+    "multi_attribute": [
+      {
+        "success": true,
+        "time_ms": 296,
+        "throughput": 33783.78,
+        "size": 10,
+        "attrs": 10,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 319,
+        "throughput": 31347.96,
+        "size": 200,
+        "attrs": 10,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 418,
+        "throughput": 23923.44,
+        "size": 1000,
+        "attrs": 50,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 620,
+        "throughput": 16129.03,
+        "size": 2000,
+        "attrs": 100,
+        "num_docs": 10000
+      },
+      {
+        "success": true,
+        "time_ms": 744,
+        "throughput": 13440.86,
+        "size": 4000,
+        "attrs": 200,
+        "num_docs": 10000
+      }
+    ]
+  }
+}

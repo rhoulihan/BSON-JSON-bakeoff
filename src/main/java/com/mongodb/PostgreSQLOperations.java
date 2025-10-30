@@ -1,5 +1,6 @@
 package com.mongodb;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -42,7 +43,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
             for (String collectionName : collectionNames) {
                 dropStmt = connection.prepareStatement(String.format("DROP TABLE IF EXISTS %s", collectionName));
     
-                createStmt = connection.prepareStatement(String.format("CREATE %s TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray STRING[])"
+                createStmt = connection.prepareStatement(String.format("CREATE %s TABLE %s  (id SERIAL PRIMARY KEY, data %s, indexArray TEXT[])"
                     , isYugabyteDB ? "" : "UNLOGGED", collectionName, Main.jsonType)
                  )                ;
 
@@ -109,7 +110,8 @@ public class PostgreSQLOperations implements DatabaseOperations {
                 }
                 
                 setIdx++;
-                stmt.setObject(setIdx, indexAttrs.stream().toArray());
+                Array sqlArray = connection.createArrayOf("text", indexAttrs.toArray(new String[0]));
+                stmt.setArray(setIdx, sqlArray);
                 
                 if (setIdx == Main.batchSize * 2) {
                     stmt.execute();
@@ -132,7 +134,7 @@ public class PostgreSQLOperations implements DatabaseOperations {
     
     @Override
     public int queryDocumentsById(String collectionName, String id) {
-        String sql = "SELECT data FROM " + collectionName + " WHERE ARRAY[?::string] <@ indexarray";
+        String sql = "SELECT data FROM " + collectionName + " WHERE ARRAY[?::text] <@ indexarray";
         try {
             stmt = connection.prepareStatement(sql);
             stmt.setString(1, id);

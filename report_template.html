@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MongoDB vs Oracle JSON Collection Tables - Benchmark Report</title>
+    <title>MongoDB vs PostgreSQL vs Oracle - JSON Benchmark Report</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -223,6 +223,16 @@
             color: white;
         }
 
+        .badge-postgresql-json {
+            background: #336791;
+            color: white;
+        }
+
+        .badge-postgresql-jsonb {
+            background: #0064a5;
+            color: white;
+        }
+
         @media print {
             body {
                 background: white;
@@ -237,7 +247,7 @@
     <div class="container">
         <header>
             <h1>Database Performance Benchmark Report</h1>
-            <div class="subtitle">MongoDB vs Oracle JSON Collection Tables</div>
+            <div class="subtitle">MongoDB vs PostgreSQL (JSON/JSONB) vs Oracle JSON Collection Tables</div>
             <div class="timestamp" id="timestamp"></div>
         </header>
 
@@ -273,10 +283,11 @@
                         <tr>
                             <th>Payload Size</th>
                             <th>Attributes</th>
-                            <th>MongoDB <span class="badge badge-mongodb">With Index</span></th>
+                            <th>MongoDB <span class="badge badge-mongodb">BSON</span></th>
+                            <th>PostgreSQL <span class="badge badge-postgresql-json">JSON</span></th>
+                            <th>PostgreSQL <span class="badge badge-postgresql-jsonb">JSONB</span></th>
                             <th>Oracle <span class="badge badge-oracle">No Index</span></th>
                             <th>Oracle <span class="badge badge-oracle-indexed">With Index</span></th>
-                            <th>Speedup</th>
                         </tr>
                     </thead>
                     <tbody id="results-tbody"></tbody>
@@ -347,31 +358,29 @@
             const attributes = benchmarkData.configuration.attributes;
 
             const mongodb = benchmarkData.results.mongodb || [];
+            const postgresqlJson = benchmarkData.results.postgresql_json || [];
+            const postgresqlJsonb = benchmarkData.results.postgresql_jsonb || [];
             const oracleNoIndex = benchmarkData.results.oracle_no_index || [];
             const oracleWithIndex = benchmarkData.results.oracle_with_index || [];
 
             payloadSizes.forEach(size => {
                 attributes.forEach(attrs => {
                     const mongoResult = getResult(mongodb, size, attrs);
+                    const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                    const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
                     const oracleNoIdxResult = getResult(oracleNoIndex, size, attrs);
                     const oracleIdxResult = getResult(oracleWithIndex, size, attrs);
 
                     const row = document.createElement('tr');
 
-                    // Calculate speedup
-                    let speedup = 'N/A';
-                    if (mongoResult && oracleNoIdxResult) {
-                        const speedupValue = (oracleNoIdxResult.time_ms / mongoResult.time_ms).toFixed(2);
-                        speedup = `<span class="faster">${speedupValue}x faster</span>`;
-                    }
-
                     row.innerHTML = `
                         <td>${size}B</td>
                         <td>${attrs}</td>
                         <td class="metric-value">${mongoResult ? mongoResult.time_ms + 'ms' : 'N/A'}</td>
+                        <td class="metric-value">${pgJsonResult ? pgJsonResult.time_ms + 'ms' : 'N/A'}</td>
+                        <td class="metric-value">${pgJsonbResult ? pgJsonbResult.time_ms + 'ms' : 'N/A'}</td>
                         <td class="metric-value">${oracleNoIdxResult ? oracleNoIdxResult.time_ms + 'ms' : 'N/A'}</td>
                         <td class="metric-value">${oracleIdxResult ? oracleIdxResult.time_ms + 'ms' : 'N/A'}</td>
-                        <td>${speedup}</td>
                     `;
                     tbody.appendChild(row);
                 });
@@ -390,6 +399,8 @@
             const attributes = benchmarkData.configuration.attributes;
 
             const mongodb = benchmarkData.results.mongodb || [];
+            const postgresqlJson = benchmarkData.results.postgresql_json || [];
+            const postgresqlJsonb = benchmarkData.results.postgresql_jsonb || [];
             const oracleNoIndex = benchmarkData.results.oracle_no_index || [];
             const oracleWithIndex = benchmarkData.results.oracle_with_index || [];
 
@@ -401,16 +412,22 @@
             });
 
             const mongoData = [];
+            const pgJsonData = [];
+            const pgJsonbData = [];
             const oracleNoIdxData = [];
             const oracleIdxData = [];
 
             payloadSizes.forEach(size => {
                 attributes.forEach(attrs => {
                     const mongoResult = getResult(mongodb, size, attrs);
+                    const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                    const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
                     const oracleNoIdxResult = getResult(oracleNoIndex, size, attrs);
                     const oracleIdxResult = getResult(oracleWithIndex, size, attrs);
 
                     mongoData.push(mongoResult ? mongoResult.time_ms : null);
+                    pgJsonData.push(pgJsonResult ? pgJsonResult.time_ms : null);
+                    pgJsonbData.push(pgJsonbResult ? pgJsonbResult.time_ms : null);
                     oracleNoIdxData.push(oracleNoIdxResult ? oracleNoIdxResult.time_ms : null);
                     oracleIdxData.push(oracleIdxResult ? oracleIdxResult.time_ms : null);
                 });
@@ -422,10 +439,24 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'MongoDB (with index)',
+                            label: 'MongoDB (BSON)',
                             data: mongoData,
                             backgroundColor: 'rgba(19, 170, 82, 0.7)',
                             borderColor: 'rgba(19, 170, 82, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'PostgreSQL (JSON)',
+                            data: pgJsonData,
+                            backgroundColor: 'rgba(51, 103, 145, 0.7)',
+                            borderColor: 'rgba(51, 103, 145, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'PostgreSQL (JSONB)',
+                            data: pgJsonbData,
+                            backgroundColor: 'rgba(0, 100, 165, 0.7)',
+                            borderColor: 'rgba(0, 100, 165, 1)',
                             borderWidth: 2
                         },
                         {
@@ -476,6 +507,8 @@
             const attributes = benchmarkData.configuration.attributes;
 
             const mongodb = benchmarkData.results.mongodb || [];
+            const postgresqlJson = benchmarkData.results.postgresql_json || [];
+            const postgresqlJsonb = benchmarkData.results.postgresql_jsonb || [];
             const oracleNoIndex = benchmarkData.results.oracle_no_index || [];
             const oracleWithIndex = benchmarkData.results.oracle_with_index || [];
 
@@ -487,16 +520,22 @@
             });
 
             const mongoData = [];
+            const pgJsonData = [];
+            const pgJsonbData = [];
             const oracleNoIdxData = [];
             const oracleIdxData = [];
 
             payloadSizes.forEach(size => {
                 attributes.forEach(attrs => {
                     const mongoResult = getResult(mongodb, size, attrs);
+                    const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                    const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
                     const oracleNoIdxResult = getResult(oracleNoIndex, size, attrs);
                     const oracleIdxResult = getResult(oracleWithIndex, size, attrs);
 
                     mongoData.push(mongoResult ? mongoResult.throughput : null);
+                    pgJsonData.push(pgJsonResult ? pgJsonResult.throughput : null);
+                    pgJsonbData.push(pgJsonbResult ? pgJsonbResult.throughput : null);
                     oracleNoIdxData.push(oracleNoIdxResult ? oracleNoIdxResult.throughput : null);
                     oracleIdxData.push(oracleIdxResult ? oracleIdxResult.throughput : null);
                 });
@@ -508,10 +547,24 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'MongoDB (with index)',
+                            label: 'MongoDB (BSON)',
                             data: mongoData,
                             backgroundColor: 'rgba(19, 170, 82, 0.7)',
                             borderColor: 'rgba(19, 170, 82, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'PostgreSQL (JSON)',
+                            data: pgJsonData,
+                            backgroundColor: 'rgba(51, 103, 145, 0.7)',
+                            borderColor: 'rgba(51, 103, 145, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'PostgreSQL (JSONB)',
+                            data: pgJsonbData,
+                            backgroundColor: 'rgba(0, 100, 165, 0.7)',
+                            borderColor: 'rgba(0, 100, 165, 1)',
                             borderWidth: 2
                         },
                         {
@@ -562,22 +615,40 @@
             const attributes = benchmarkData.configuration.attributes;
 
             const mongodb = benchmarkData.results.mongodb || [];
+            const postgresqlJson = benchmarkData.results.postgresql_json || [];
+            const postgresqlJsonb = benchmarkData.results.postgresql_jsonb || [];
             const oracleNoIndex = benchmarkData.results.oracle_no_index || [];
 
             const labels = [];
-            const speedupData = [];
+            const pgJsonSpeedupData = [];
+            const pgJsonbSpeedupData = [];
+            const oracleSpeedupData = [];
 
             payloadSizes.forEach(size => {
                 attributes.forEach(attrs => {
                     labels.push(`${size}B / ${attrs} attr${attrs > 1 ? 's' : ''}`);
 
                     const mongoResult = getResult(mongodb, size, attrs);
+                    const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                    const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
                     const oracleResult = getResult(oracleNoIndex, size, attrs);
 
-                    if (mongoResult && oracleResult) {
-                        speedupData.push((oracleResult.time_ms / mongoResult.time_ms).toFixed(2));
+                    if (mongoResult && pgJsonResult) {
+                        pgJsonSpeedupData.push((pgJsonResult.time_ms / mongoResult.time_ms).toFixed(2));
                     } else {
-                        speedupData.push(null);
+                        pgJsonSpeedupData.push(null);
+                    }
+
+                    if (mongoResult && pgJsonbResult) {
+                        pgJsonbSpeedupData.push((pgJsonbResult.time_ms / mongoResult.time_ms).toFixed(2));
+                    } else {
+                        pgJsonbSpeedupData.push(null);
+                    }
+
+                    if (mongoResult && oracleResult) {
+                        oracleSpeedupData.push((oracleResult.time_ms / mongoResult.time_ms).toFixed(2));
+                    } else {
+                        oracleSpeedupData.push(null);
                     }
                 });
             });
@@ -586,13 +657,29 @@
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'MongoDB Speedup vs Oracle (no index)',
-                        data: speedupData,
-                        backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 2
-                    }]
+                    datasets: [
+                        {
+                            label: 'MongoDB vs PostgreSQL JSON',
+                            data: pgJsonSpeedupData,
+                            backgroundColor: 'rgba(51, 103, 145, 0.7)',
+                            borderColor: 'rgba(51, 103, 145, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'MongoDB vs PostgreSQL JSONB',
+                            data: pgJsonbSpeedupData,
+                            backgroundColor: 'rgba(0, 100, 165, 0.7)',
+                            borderColor: 'rgba(0, 100, 165, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'MongoDB vs Oracle JCT',
+                            data: oracleSpeedupData,
+                            backgroundColor: 'rgba(248, 0, 0, 0.7)',
+                            borderColor: 'rgba(248, 0, 0, 1)',
+                            borderWidth: 2
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -600,7 +687,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: 'MongoDB Performance Advantage (Higher is Better)',
+                            text: 'Relative Performance to MongoDB (Higher = Slower)',
                             font: { size: 16, weight: 'bold' }
                         },
                         legend: {
@@ -612,7 +699,7 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Speedup Factor (X times faster)'
+                                text: 'Relative Speed (1.0 = same as MongoDB)'
                             }
                         }
                     }
@@ -623,29 +710,59 @@
         function displayObservations() {
             const list = document.getElementById('observations-list');
             const mongodb = benchmarkData.results.mongodb || [];
+            const postgresqlJson = benchmarkData.results.postgresql_json || [];
+            const postgresqlJsonb = benchmarkData.results.postgresql_jsonb || [];
             const oracleNoIndex = benchmarkData.results.oracle_no_index || [];
             const oracleWithIndex = benchmarkData.results.oracle_with_index || [];
 
             const observations = [];
 
-            // Calculate average speedup
-            let totalSpeedup = 0;
+            // Calculate average relative performance
+            let pgJsonSpeedup = 0, pgJsonbSpeedup = 0, oracleSpeedup = 0;
             let count = 0;
             benchmarkData.configuration.payload_sizes.forEach(size => {
                 benchmarkData.configuration.attributes.forEach(attrs => {
                     const mongoResult = getResult(mongodb, size, attrs);
+                    const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                    const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
                     const oracleResult = getResult(oracleNoIndex, size, attrs);
-                    if (mongoResult && oracleResult) {
-                        totalSpeedup += oracleResult.time_ms / mongoResult.time_ms;
+
+                    if (mongoResult) {
+                        if (pgJsonResult) pgJsonSpeedup += pgJsonResult.time_ms / mongoResult.time_ms;
+                        if (pgJsonbResult) pgJsonbSpeedup += pgJsonbResult.time_ms / mongoResult.time_ms;
+                        if (oracleResult) oracleSpeedup += oracleResult.time_ms / mongoResult.time_ms;
                         count++;
                     }
                 });
             });
-            const avgSpeedup = count > 0 ? (totalSpeedup / count).toFixed(2) : 'N/A';
 
-            observations.push(`<strong>MongoDB is consistently ${avgSpeedup}x faster</strong> than Oracle JSON Collection Tables across all test scenarios in this environment (Oracle 23ai Free on WSL2).`);
+            if (count > 0) {
+                const avgPgJson = (pgJsonSpeedup / count).toFixed(2);
+                const avgPgJsonb = (pgJsonbSpeedup / count).toFixed(2);
+                const avgOracle = (oracleSpeedup / count).toFixed(2);
 
-            // Index impact
+                observations.push(`<strong>Performance Ranking:</strong> MongoDB (BSON) is the fastest, followed by PostgreSQL JSONB (${avgPgJsonb}x relative), PostgreSQL JSON (${avgPgJson}x relative), and Oracle JCT (${avgOracle}x relative).`);
+            }
+
+            // PostgreSQL JSON vs JSONB comparison
+            if (postgresqlJson.length > 0 && postgresqlJsonb.length > 0) {
+                let jsonbAdvantage = 0;
+                let compareCount = 0;
+                benchmarkData.configuration.payload_sizes.forEach(size => {
+                    benchmarkData.configuration.attributes.forEach(attrs => {
+                        const pgJsonResult = getResult(postgresqlJson, size, attrs);
+                        const pgJsonbResult = getResult(postgresqlJsonb, size, attrs);
+                        if (pgJsonResult && pgJsonbResult) {
+                            jsonbAdvantage += ((pgJsonResult.time_ms - pgJsonbResult.time_ms) / pgJsonResult.time_ms * 100);
+                            compareCount++;
+                        }
+                    });
+                });
+                const avgAdvantage = compareCount > 0 ? (jsonbAdvantage / compareCount).toFixed(1) : 0;
+                observations.push(`PostgreSQL <strong>JSONB is ${avgAdvantage}% faster than JSON</strong> on average, demonstrating the benefits of binary JSON storage.`);
+            }
+
+            // Index impact for Oracle
             let indexImpact = [];
             benchmarkData.configuration.payload_sizes.forEach(size => {
                 benchmarkData.configuration.attributes.forEach(attrs => {
@@ -661,7 +778,7 @@
                 ? (indexImpact.reduce((a, b) => a + b, 0) / indexImpact.length).toFixed(1)
                 : 0;
 
-            observations.push(`Oracle's JSON search index has <strong>minimal impact on insert performance</strong> (${avgIndexImpact}% average difference), and in some cases shows slight improvement.`);
+            observations.push(`Oracle's JSON search index has <strong>minimal impact on insert performance</strong> (${avgIndexImpact}% average difference).`);
 
             // Throughput observations
             if (mongodb.length > 0) {
@@ -670,17 +787,21 @@
                 observations.push(`MongoDB achieves an average throughput of <strong>~${avgThroughput.toLocaleString()} documents/second</strong>.`);
             }
 
+            if (postgresqlJsonb.length > 0) {
+                const throughputs = postgresqlJsonb.map(r => r.throughput);
+                const avgThroughput = (throughputs.reduce((a, b) => a + b, 0) / throughputs.length).toFixed(0);
+                observations.push(`PostgreSQL (JSONB) achieves an average throughput of <strong>~${avgThroughput.toLocaleString()} documents/second</strong>.`);
+            }
+
             if (oracleNoIndex.length > 0) {
                 const throughputs = oracleNoIndex.map(r => r.throughput);
                 const avgThroughput = (throughputs.reduce((a, b) => a + b, 0) / throughputs.length).toFixed(0);
                 observations.push(`Oracle JCT (without index) achieves an average throughput of <strong>~${avgThroughput.toLocaleString()} documents/second</strong>.`);
             }
 
-            observations.push(`<strong>Payload size and attribute distribution</strong> have minimal impact on relative performance between the databases.`);
+            observations.push(`<strong>Binary formats</strong> (MongoDB BSON, PostgreSQL JSONB, Oracle OSON) consistently outperform text-based JSON storage.`);
 
-            observations.push(`Performance gap is primarily due to <strong>Oracle Free edition resource limitations</strong> (2GB RAM, 2 CPUs) and <strong>WSL2 virtualization overhead</strong> (10-20%).`);
-
-            observations.push(`Commercial Oracle on native Linux with more resources (8GB+ RAM, 4+ CPUs) shows significantly better performance and can outperform MongoDB in similar workloads.`);
+            observations.push(`Performance differences are influenced by database architecture, storage engine optimizations, and system configuration.`);
 
             observations.forEach(obs => {
                 const li = document.createElement('li');

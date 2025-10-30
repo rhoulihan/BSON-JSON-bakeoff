@@ -1,5 +1,6 @@
 package com.mongodb;
 
+import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -15,7 +16,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import oracle.jdbc.OracleConnection;
+import oracle.jdbc.internal.OracleTypes;
 import oracle.sql.json.OracleJsonFactory;
+import oracle.sql.json.OracleJsonGenerator;
 import oracle.sql.json.OracleJsonObject;
 
 /**
@@ -136,7 +139,9 @@ public class OracleJCT implements DatabaseOperations {
             long start = System.currentTimeMillis();
             int added = 0;
             for (OracleJsonObject obj : objects) {
-                insert.setObject(1, obj);
+                // Use explicit OSON binary conversion for better performance
+                byte[] oson = getOson(obj);
+                insert.setObject(1, oson, OracleTypes.JSON);
                 insert.addBatch();
                 added++;
                 if (added == Main.batchSize) {
@@ -154,6 +159,18 @@ public class OracleJCT implements DatabaseOperations {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Convert OracleJsonObject to OSON (Oracle Binary JSON) format.
+     * This explicit conversion improves insertion performance compared to implicit conversion.
+     */
+    private byte[] getOson(OracleJsonObject obj) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OracleJsonGenerator gen = jsonFactory.createJsonBinaryGenerator(baos);
+        gen.write(obj);
+        gen.close();
+        return baos.toByteArray();
     }
 
     @Override
