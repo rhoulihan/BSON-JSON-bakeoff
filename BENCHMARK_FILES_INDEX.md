@@ -145,31 +145,34 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 
 ### Platform Rankings
 
-1. **MongoDB BSON** - Overall winner
+1. **MongoDB BSON & Oracle JCT** - Co-winners (each excels at different workloads)
+
+   **MongoDB BSON:**
+   - Best for large single-attribute documents (1-4KB)
    - Best consistency (1.18x degradation)
-   - Wins large documents (4KB)
-   - Proven at scale
+   - Proven ecosystem and horizontal scaling
 
-2. **Oracle JCT** - Strong second
-   - Best multi-attribute performance
-   - Wins 200-attribute test
-   - Excellent for Oracle shops
+   **Oracle JCT:**
+   - Best for complex multi-attribute documents (100-200+ attrs)
+   - Wins most complex test: 200 attributes (744ms vs MongoDB 829ms - 11% faster!)
+   - Wins small documents (10-200B)
+   - Surprisingly robust, SQL access
 
-3. **PostgreSQL JSONB** - Niche use only
+2. **PostgreSQL JSONB** - Niche use only
    - Only wins tiny docs (10B)
    - 114x degradation (catastrophic)
    - TOAST cliff at 2KB
 
 ### Critical Numbers
 
-**Single-Attribute 4KB:**
-- MongoDB: 353ms ✓
+**Single-Attribute 4KB (Large single-attribute docs):**
+- MongoDB: 353ms ✓ (Winner)
 - Oracle: 471ms (33% slower)
 - PG-JSONB: 25,192ms (71x slower!)
 
-**Multi-Attribute 200×20B:**
-- Oracle: 744ms ✓
-- MongoDB: 829ms (11% slower)
+**Multi-Attribute 200×20B (Complex multi-attribute docs):**
+- Oracle: 744ms ✓ (Winner - 11% FASTER than MongoDB!)
+- MongoDB: 829ms
 - PG-JSONB: 30,196ms (41x slower!)
 
 ---
@@ -223,11 +226,13 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 
 **All files support the same conclusion:**
 
-Use **MongoDB or Oracle JCT** for document workloads. PostgreSQL's TOAST mechanism makes it unsuitable for documents >2KB despite excellent relational capabilities.
+Use **MongoDB or Oracle JCT** for document workloads. They are co-winners, each excelling at different workload types. PostgreSQL's TOAST mechanism makes it unsuitable for documents >2KB despite excellent relational capabilities.
 
-- **MongoDB:** Best overall, most versatile
-- **Oracle JCT:** Excellent alternative, best for multi-attribute docs
-- **PostgreSQL:** Only for tiny docs in hybrid systems
+- **MongoDB:** Best for large single-attribute documents (1-4KB), proven ecosystem
+- **Oracle JCT:** Surprisingly robust, WINS for complex multi-attribute documents (100-200+ attrs)
+- **PostgreSQL:** Only for tiny docs (<200B) in hybrid systems
+
+**Key finding:** Oracle beats MongoDB by 11% at the most complex test (200 attributes)
 
 ---
 

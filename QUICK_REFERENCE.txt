@@ -81,11 +81,12 @@ USE MONGODB WHEN:
   ✓ Most versatile choice
 
 USE ORACLE JCT WHEN:
-  ✓ Already using Oracle
+  ✓ Documents have many attributes (100-200+)
+  ✓ Already using Oracle infrastructure
   ✓ Need SQL access to documents
-  ✓ Many attributes (200+)
   ✓ Enterprise features required
-  ✓ Best for fragmented documents
+  ✓ Best for complex structured documents
+  ✓ WINS the most complex test (200 attrs)!
 
 USE POSTGRESQL WHEN:
   ✓ Documents are tiny (<200B)
@@ -103,18 +104,27 @@ AVOID POSTGRESQL WHEN:
 ║                                FINAL VERDICT                                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-🥇 MONGODB BSON - Overall Winner
-   Best for most document workloads, proven at scale, flattest curve
+🥇 MONGODB BSON & ORACLE JCT - Co-Winners (Choose by Workload Type)
 
-🥈 ORACLE JCT - Strong Alternative  
-   Excellent for Oracle shops, surprisingly good for multi-attribute docs
+   MONGODB BSON:
+   ✓ Best for large single-attribute documents (1-4KB)
+   ✓ Wins 4KB test: 353ms vs Oracle 471ms (33% faster)
+   ✓ Most consistent scaling (1.18x degradation)
+   ✓ Proven ecosystem, horizontal scaling
+
+   ORACLE JCT:
+   ✓ Best for complex multi-attribute documents (100-200+ attrs)
+   ✓ Wins 200-attribute test: 744ms vs MongoDB 829ms (11% FASTER!)
+   ✓ Wins small documents (10-200B)
+   ✓ Surprisingly robust, SQL access, enterprise features
 
 🥉 POSTGRESQL JSONB - Niche Use Only
-   Only suitable for tiny documents in hybrid relational systems
+   Only suitable for tiny documents (<200B) in hybrid relational systems
 
-BOTTOM LINE: Use purpose-built document databases (MongoDB/Oracle JCT) for
-document workloads. PostgreSQL's TOAST mechanism makes it unsuitable for
-documents >2KB despite its relational excellence.
+BOTTOM LINE: MongoDB and Oracle are co-winners, each owning different workload
+types. MongoDB excels at large single-attribute docs. Oracle surprises by
+beating MongoDB for complex multi-attribute docs. PostgreSQL's TOAST mechanism
+makes it unsuitable for documents >2KB despite its relational excellence.
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  Test Date: October 30, 2025  |  10K docs/test  |  3 runs  |  Batch 500    ║

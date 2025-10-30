@@ -391,9 +391,14 @@ This detailed analysis includes:
 - Complete benchmark methodology
 
 **Key Findings Summary:**
-- **MongoDB BSON**: Most consistent performance across all payload sizes (1.18x degradation)
-- **Oracle JCT**: Excellent alternative, wins for highly-fragmented documents (200+ attributes)
+- **MongoDB BSON**: Best for large single-attribute documents (1-4KB), excellent consistency (1.18x degradation)
+- **Oracle JCT**: Surprisingly robust, wins for complex multi-attribute documents (200+ attributes) and small documents (10-200B)
 - **PostgreSQL**: TOAST mechanism causes 83-114x degradation above 2KB - unsuitable for document storage
+
+**Winner by workload type:**
+- Large single-attribute docs (4KB): MongoDB (353ms vs Oracle 471ms)
+- Complex multi-attribute docs (200 attrs): Oracle (744ms vs MongoDB 829ms - 11% faster!)
+- Small documents (10-200B): Oracle consistently wins
 
 See also:
 - [Executive Summary](EXECUTIVE_SUMMARY.md) - High-level findings and recommendations

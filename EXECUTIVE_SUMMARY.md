@@ -8,20 +8,25 @@
 
 ## Bottom Line
 
-### 🥇 MongoDB BSON - Overall Winner
-**Best for:** Most document workloads, large documents (>2KB), consistent performance
+### 🥇 MongoDB BSON & Oracle JCT - Co-Winners (Choose by workload type)
 
-- **Wins:** Large documents, overall consistency
-- **Throughput:** 28K-33K docs/sec (stable)
+**MongoDB BSON**
+**Best for:** Large single-attribute documents (1-4KB), most consistent performance
+
+- **Wins:** Large single-attribute docs (4KB: 353ms vs Oracle 471ms - 33% faster)
+- **Throughput:** 28K-33K docs/sec (rock solid)
 - **Degradation:** Only 1.18x from 10B to 4KB (best-in-class)
+- **Strength:** Flattest curve, proven ecosystem, horizontal scaling
 
-### 🥈 Oracle JCT - Strong Second
-**Best for:** Multi-attribute documents, Oracle shops, SQL access needed
+**Oracle JCT**
+**Best for:** Complex multi-attribute documents (100-200+ attrs), Oracle infrastructure
 
-- **Wins:** Multi-attribute documents (200+ attributes), small documents
+- **Wins:** Complex documents (200 attrs: 744ms vs MongoDB 829ms - 11% faster!), small documents (10-200B)
 - **Throughput:** 21K-35K docs/sec
-- **Degradation:** 1.65x from 10B to 4KB (excellent)
-- **Surprise:** Beats MongoDB for highly-fragmented documents!
+- **Degradation:** 2.51x multi-attribute (better than MongoDB's 2.72x)
+- **Strength:** Surprisingly robust, beats MongoDB at most complex test, SQL access
+
+**Key insight:** Oracle is not just competitive—it WINS for complex multi-attribute documents. MongoDB wins for large single-attribute documents. They're co-winners, each owning different workload types.
 
 ### 🥉 PostgreSQL JSONB - Niche Use Only
 **Best for:** Tiny documents (<200B) in hybrid relational systems
@@ -137,7 +142,9 @@ Compare to PostgreSQL:
 | 200 | Oracle | MongoDB | PG-JSON |
 
 ### Overall Winner
-**MongoDB** - Most versatile, best consistency, suitable for widest range of document workloads.
+**MongoDB & Oracle (Co-Winners)** - Each excels at different workload types:
+- **MongoDB:** Large single-attribute documents (1-4KB), most consistent scaling
+- **Oracle:** Complex multi-attribute documents (100-200+ attrs), small documents, SQL access
 
 ---
 
@@ -155,12 +162,16 @@ Compare to PostgreSQL:
 
 This benchmark conclusively demonstrates:
 
-1. **MongoDB and Oracle are purpose-built for documents** - Both show excellent, consistent performance
-2. **PostgreSQL's TOAST is a deal-breaker** - Catastrophic degradation above 2KB
-3. **Oracle JCT is a viable alternative** - Especially for multi-attribute documents and Oracle shops
-4. **Use the right tool** - Don't force relational databases into document storage roles
+1. **MongoDB and Oracle are co-winners** - MongoDB wins large single-attribute docs, Oracle wins complex multi-attribute docs
+2. **Oracle surprises by beating MongoDB** - 11% faster at the most complex test (200 attributes)
+3. **PostgreSQL's TOAST is a deal-breaker** - Catastrophic degradation above 2KB
+4. **Choose by workload type** - MongoDB for simple large docs, Oracle for complex structured docs
+5. **Use the right tool** - Don't force relational databases into document storage roles
 
-**For GenAI, content management, and document-centric applications:** Choose MongoDB or Oracle JCT, not PostgreSQL.
+**For GenAI, content management, and document-centric applications:**
+- **Complex structured documents with many fields:** Choose Oracle JCT (wins 200-attribute test)
+- **Large documents with few fields:** Choose MongoDB BSON (wins 4KB single-attribute test)
+- **Avoid:** PostgreSQL for any documents >2KB
 
 ---
 
