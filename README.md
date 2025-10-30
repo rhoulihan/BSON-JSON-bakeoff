@@ -35,10 +35,11 @@ This project provides a Java-based benchmark utility that generates synthetic do
 
 ## Prerequisites
 
-- Java 8 or higher
-- Maven 3.x
-- Docker (for using the automated test script)
-- Access to at least one of the supported database systems
+- **Operating System**: Oracle Linux 9.6 (or compatible RHEL-based distribution)
+- **Java**: Java 8 or higher
+- **Maven**: Maven 3.x
+- **Docker**: For using the automated test script (optional)
+- **Database Access**: At least one of the supported database systems
 
 ## Project Structure
 
@@ -375,30 +376,28 @@ Total time taken to query 10000 ID's with 10 element link arrays using multikey 
 Total items found: 99939
 ```
 
-## Performance Insights
+## Performance Analysis
 
-Based on typical benchmark results:
+For comprehensive performance analysis and benchmark results comparing MongoDB BSON, Oracle 26ai JSON Collection Tables, and PostgreSQL 17.6 JSON/JSONB, see:
 
-1. **MongoDB** generally provides faster insertion times, especially with BSON's native binary format
-2. **MongoDB** typically offers faster query performance for multikey index queries
-3. **Oracle 23AI** with direct table insertion (`-d` flag) produces correct results matching MongoDB
-4. **Oracle 23AI JSON Duality Views** offers unique advantages:
-   - Unified access to data as both relational tables and JSON documents
-   - ACID transaction guarantees with document-style operations
-   - Automatic normalization/denormalization during writes/reads
-   - Leverages relational indexes for query performance
-   - Best-of-both-worlds approach for applications requiring both document flexibility and relational integrity
-5. **Multiple Runs**: Using `-r` flag provides more consistent benchmarking by eliminating outliers from JVM warmup or system load
-6. **Direct Table Insertion**: Oracle's direct insertion (`-d`) bypasses Duality View overhead but loses the automatic bidirectional JSON/relational mapping
+**📊 [Three-Platform Performance Comparison](THREE_PLATFORM_COMPARISON.md)**
 
-### Additional Performance Notes
+This detailed analysis includes:
+- Single and multi-attribute performance results
+- Payload size impact analysis (10B to 4KB)
+- PostgreSQL TOAST threshold documentation
+- MongoDB vs Oracle head-to-head comparison
+- When to use each platform
+- Complete benchmark methodology
 
-- **JSONB vs JSON**: PostgreSQL's JSONB format offers better query performance but slightly slower insertion compared to plain JSON
-- **Indexing**: Multikey indexes significantly improve query performance but add overhead to insertions
-- **Batch Size**: Larger batch sizes generally improve throughput but consume more memory
-- **Oracle Overhead**: Direct table insertion in Oracle includes overhead from two separate INSERT operations, foreign key constraints, and multiple commits per batch
-- **Oracle OSON**: The Oracle implementation uses native OSON (Oracle Binary JSON) format via `OracleJsonFactory` to create binary JSON objects in Java, eliminating JSON text parsing overhead on the database side for improved insert performance
-- **Attribute Distribution**: Splitting payloads across multiple attributes can have different impacts depending on the database
+**Key Findings Summary:**
+- **MongoDB BSON**: Most consistent performance across all payload sizes (1.18x degradation)
+- **Oracle JCT**: Excellent alternative, wins for highly-fragmented documents (200+ attributes)
+- **PostgreSQL**: TOAST mechanism causes 83-114x degradation above 2KB - unsuitable for document storage
+
+See also:
+- [Executive Summary](EXECUTIVE_SUMMARY.md) - High-level findings and recommendations
+- [Quick Reference](QUICK_REFERENCE.txt) - Results tables and quick decision guide
 
 ## Oracle 23AI JSON Duality Views
 
