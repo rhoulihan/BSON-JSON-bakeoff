@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This benchmark compares three leading document storage technologies across single and multi-attribute workloads with payload sizes from 10B to 4KB. The results reveal a clear winner: **Oracle JCT dominates real-world document workloads** where documents have structure (100-200+ attributes).
+This benchmark compares three leading document storage technologies across single and multi-attribute workloads with payload sizes from 10B to 4KB. The results reveal a clear winner: **Oracle JCT dominates real-world document workloads** where documents have structure (up to 200+ attributes).
 
 🥇 **Oracle JCT (OSON)** - CLEAR WINNER for production document storage with complex multi-attribute documents (the most common real-world pattern)
 
