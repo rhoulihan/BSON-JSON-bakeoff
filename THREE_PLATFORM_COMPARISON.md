@@ -11,8 +11,10 @@
 
 This benchmark compares three leading document storage technologies across single and multi-attribute workloads with payload sizes from 10B to 4KB. The results reveal a clear winner: **Oracle JCT dominates real-world document workloads** where documents have structure (100-200+ attributes).
 
-🥇 **Oracle JCT (OSON)** - CLEAR WINNER for production document storage with complex multi-attribute documents (the dominant real-world pattern)
-🥈 **MongoDB BSON** - Limited to corner case: large single-attribute blobs (unrealistic for structured data)
+🥇 **Oracle JCT (OSON)** - CLEAR WINNER for production document storage with complex multi-attribute documents (the most common real-world pattern)
+
+🥈 **MongoDB BSON** - Wins large single-attribute workloads (not common for structured data)
+
 🥉 **PostgreSQL JSONB** - Only suitable for tiny docs (<200B), catastrophic degradation above 2KB
 
 **Key finding:** Oracle WINS the realistic and complex test (200 attributes) by 15%, wins 3 of 5 multi-attribute tests, and scales better (2.66x vs MongoDB's 3.03x). MongoDB's only win is the corner case of storing 4KB as a single blob.
