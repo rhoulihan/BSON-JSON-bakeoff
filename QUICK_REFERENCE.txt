@@ -8,11 +8,11 @@
 ├──────────┬────────────┬────────────┬────────────┬─────────────┬──────────────┤
 │ Payload  │  MongoDB   │ Oracle JCT │  PG-JSON   │  PG-JSONB   │    Winner    │
 ├──────────┼────────────┼────────────┼────────────┼─────────────┼──────────────┤
-│   10B    │    300ms   │    285ms   │    196ms   │    221ms    │   PG-JSON ✓  │
-│  200B    │    300ms   │    286ms   │    757ms   │   1,720ms   │   Oracle  ✓  │
-│   1KB    │    320ms   │    365ms   │   3,846ms  │   7,241ms   │   MongoDB ✓  │
-│   2KB    │    324ms   │    363ms   │   8,087ms  │  13,201ms   │   MongoDB ✓  │
-│   4KB    │    353ms   │    471ms   │  16,297ms  │  25,192ms   │   MongoDB ✓  │
+│   10B    │    274ms   │    257ms   │    192ms   │    206ms    │    PG-JSON ✓  │
+│  200B    │    256ms   │    281ms   │    676ms   │   1616ms   │    MongoDB ✓  │
+│   1KB    │    268ms   │    320ms   │   3590ms  │   6531ms   │    MongoDB ✓  │
+│   2KB    │    325ms   │    352ms   │   7583ms  │  12502ms   │    MongoDB ✓  │
+│   4KB    │    339ms   │    434ms   │  15910ms  │  24447ms   │    MongoDB ✓  │
 └──────────┴────────────┴────────────┴────────────┴─────────────┴──────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -20,11 +20,11 @@
 ├──────────┬────────────┬────────────┬────────────┬─────────────┬──────────────┤
 │  Config  │  MongoDB   │ Oracle JCT │  PG-JSON   │  PG-JSONB   │    Winner    │
 ├──────────┼────────────┼────────────┼────────────┼─────────────┼──────────────┤
-│  10×1B   │    305ms   │    296ms   │    234ms   │    273ms    │   PG-JSON ✓  │
-│ 10×20B   │    310ms   │    319ms   │    792ms   │   1,685ms   │   MongoDB ✓  │
-│ 50×20B   │    389ms   │    418ms   │   4,321ms  │   8,133ms   │   MongoDB ✓  │
-│ 100×20B  │    554ms   │    620ms   │   8,604ms  │  15,476ms   │   MongoDB ✓  │
-│ 200×20B  │    829ms   │    744ms   │  17,361ms  │  30,196ms   │   Oracle  ✓  │
+│  10×1B   │    265ms   │    263ms   │    216ms   │    248ms    │    PG-JSON ✓  │
+│ 10×20B   │    271ms   │    275ms   │    726ms   │   1624ms   │    MongoDB ✓  │
+│ 50×20B   │    375ms   │    363ms   │   4080ms  │   7296ms   │     Oracle ✓  │
+│ 100×20B  │    597ms   │    527ms   │   8135ms  │  14629ms   │     Oracle ✓  │
+│ 200×20B  │    804ms   │    699ms   │  16173ms  │  28253ms   │     Oracle ✓  │
 └──────────┴────────────┴────────────┴────────────┴─────────────┴──────────────┘
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -33,16 +33,16 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 Single-Attribute (10B → 4KB):
-  MongoDB:     300ms → 353ms    (1.18x)  ⭐⭐⭐⭐⭐ EXCELLENT
-  Oracle JCT:  285ms → 471ms    (1.65x)  ⭐⭐⭐⭐  VERY GOOD
-  PG-JSON:     196ms → 16,297ms (83.1x)  ❌      CATASTROPHIC
-  PG-JSONB:    221ms → 25,192ms (114x)   ❌      CATASTROPHIC
+  MongoDB:     274ms → 339ms    (1.24x)  ⭐⭐⭐⭐⭐ EXCELLENT
+  Oracle JCT:  257ms → 434ms    (1.69x)  ⭐⭐⭐⭐  VERY GOOD
+  PG-JSON:     192ms → 15910ms (82.9x)  ❌      CATASTROPHIC
+  PG-JSONB:    206ms → 24447ms (119x)   ❌      CATASTROPHIC
 
 Multi-Attribute (10×1B → 200×20B):
-  Oracle JCT:  296ms → 744ms    (2.51x)  ⭐⭐⭐⭐⭐ EXCELLENT
-  MongoDB:     305ms → 829ms    (2.72x)  ⭐⭐⭐⭐⭐ EXCELLENT
-  PG-JSON:     234ms → 17,361ms (74.2x)  ❌      CATASTROPHIC
-  PG-JSONB:    273ms → 30,196ms (111x)   ❌      CATASTROPHIC
+  Oracle JCT:  263ms → 699ms    (2.66x)  ⭐⭐⭐⭐⭐ EXCELLENT
+  MongoDB:     265ms → 804ms    (3.03x)  ⭐⭐⭐⭐  VERY GOOD
+  PG-JSON:     216ms → 16173ms (74.9x)  ❌      CATASTROPHIC
+  PG-JSONB:    248ms → 28253ms (114x)   ❌      CATASTROPHIC
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                             CRITICAL FINDINGS                                ║
@@ -50,23 +50,23 @@ Multi-Attribute (10×1B → 200×20B):
 
 1. POSTGRESQL TOAST CLIFF AT 2KB
    ├─ Performance collapses above 2KB due to compression/out-of-line storage
-   ├─ At 200B: Competitive (757ms)
-   ├─ At 2KB: 10x worse (8,087ms)
-   └─ At 4KB: 46x worse than MongoDB (16,297ms)
+   ├─ At 200B: Competitive (676ms)
+   ├─ At 2KB: 11x worse (7583ms)
+   └─ At 4KB: 46x worse than MongoDB (15910ms)
 
 2. JSONB IS SLOWER THAN JSON FOR WRITES
    ├─ Must parse + convert to binary format
-   ├─ 4KB single-attr: JSONB 55% slower than JSON
+   ├─ 4KB single-attr: JSONB 53% slower than JSON
    └─ 200-attr multi: JSONB 74% slower than JSON
 
 3. ORACLE WINS MULTI-ATTRIBUTE TESTS
-   ├─ 200 attributes: Oracle 744ms vs MongoDB 829ms (11% faster!)
+   ├─ 200 attributes: Oracle 699ms vs MongoDB 804ms (15% faster!)
    ├─ OSON encoding optimized for fragmented documents
    └─ Surprise finding - beats MongoDB at its own game
 
 4. MONGODB'S FLAT CURVE
-   ├─ 10B: 300ms
-   ├─ 4KB: 353ms (only 18% slower!)
+   ├─ 10B: 274ms
+   ├─ 4KB: 339ms (only 23% slower!)
    └─ Most consistent performance across all scenarios
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -108,13 +108,13 @@ AVOID POSTGRESQL WHEN:
 
    MONGODB BSON:
    ✓ Best for large single-attribute documents (1-4KB)
-   ✓ Wins 4KB test: 353ms vs Oracle 471ms (33% faster)
-   ✓ Most consistent scaling (1.18x degradation)
+   ✓ Wins 4KB test: 339ms vs Oracle 434ms (28% faster)
+   ✓ Most consistent scaling (1.24x degradation)
    ✓ Proven ecosystem, horizontal scaling
 
    ORACLE JCT:
    ✓ Best for complex multi-attribute documents (100-200+ attrs)
-   ✓ Wins 200-attribute test: 744ms vs MongoDB 829ms (11% FASTER!)
+   ✓ Wins 200-attribute test: 699ms vs MongoDB 804ms (15% FASTER!)
    ✓ Wins small documents (10-200B)
    ✓ Surprisingly robust, SQL access, enterprise features
 

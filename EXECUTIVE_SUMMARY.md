@@ -13,17 +13,17 @@
 **MongoDB BSON**
 **Best for:** Large single-attribute documents (1-4KB), most consistent performance
 
-- **Wins:** Large single-attribute docs (4KB: 353ms vs Oracle 471ms - 33% faster)
-- **Throughput:** 28K-33K docs/sec (rock solid)
-- **Degradation:** Only 1.18x from 10B to 4KB (best-in-class)
+- **Wins:** Large single-attribute docs (4KB: 339ms vs Oracle 434ms - 28% faster)
+- **Throughput:** 12K-39K docs/sec (rock solid)
+- **Degradation:** Only 1.24x from 10B to 4KB (best-in-class)
 - **Strength:** Flattest curve, proven ecosystem, horizontal scaling
 
 **Oracle JCT**
 **Best for:** Complex multi-attribute documents (100-200+ attrs), Oracle infrastructure
 
-- **Wins:** Complex documents (200 attrs: 744ms vs MongoDB 829ms - 11% faster!), small documents (10-200B)
-- **Throughput:** 21K-35K docs/sec
-- **Degradation:** 2.51x multi-attribute (better than MongoDB's 2.72x)
+- **Wins:** Complex documents (200 attrs: 699ms vs MongoDB 804ms - 15% faster!), small documents (10-200B)
+- **Throughput:** 14K-38K docs/sec
+- **Degradation:** 2.66x multi-attribute (better than MongoDB's 3.03x)
 - **Strength:** Surprisingly robust, beats MongoDB at most complex test, SQL access
 
 **Key insight:** Oracle is not just competitive—it WINS for complex multi-attribute documents. MongoDB wins for large single-attribute documents. They're co-winners, each owning different workload types.
@@ -32,8 +32,8 @@
 **Best for:** Tiny documents (<200B) in hybrid relational systems
 
 - **Wins:** 10B documents only
-- **Throughput:** 397-51K docs/sec (wild variance)
-- **Degradation:** 114x from 10B to 4KB (catastrophic)
+- **Throughput:** 0K-48K docs/sec (wild variance)
+- **Degradation:** 118x from 10B to 4KB (catastrophic)
 - **TOAST cliff at 2KB makes it unsuitable for document storage**
 
 ---
@@ -42,18 +42,18 @@
 
 ### Single-Attribute Performance (4KB documents)
 ```
-MongoDB:   353ms  ← Winner
-Oracle:    471ms  (33% slower)
-PG-JSON:  16,297ms (46x slower!)
-PG-JSONB: 25,192ms (71x slower!)
+MongoDB:   339ms  ← Winner
+Oracle:    434ms  (28% slower)
+PG-JSON:  15910ms (46x slower!)
+PG-JSONB: 24447ms (72x slower!)
 ```
 
 ### Multi-Attribute Performance (200×20B = 4KB)
 ```
-Oracle:    744ms  ← Winner
-MongoDB:   829ms  (11% slower)
-PG-JSON:  17,361ms (23x slower!)
-PG-JSONB: 30,196ms (41x slower!)
+Oracle:    699ms  ← Winner
+MongoDB:   804ms  (15% slower)
+PG-JSON:  16173ms (23x slower!)
+PG-JSONB: 28253ms (40x slower!)
 ```
 
 ---
@@ -62,9 +62,9 @@ PG-JSONB: 30,196ms (41x slower!)
 
 ### 1. PostgreSQL's TOAST Problem
 PostgreSQL hits a **performance cliff at 2KB** due to TOAST (The Oversized-Attribute Storage Technique):
-- At 200B: 757ms (competitive)
-- At 2KB: 8,087ms (10x worse!)
-- At 4KB: 16,297ms (46x worse than MongoDB!)
+- At 200B: 676ms (competitive)
+- At 2KB: 7583ms (11x worse!)
+- At 4KB: 15910ms (46x worse than MongoDB!)
 
 **Verdict:** PostgreSQL is **unsuitable for document storage >2KB**.
 
@@ -73,21 +73,21 @@ Contrary to expectations:
 - JSON requires: parse → store
 - JSONB requires: parse → convert to binary → compress (>2KB) → store
 
-**Result:** JSONB is 55-75% slower than JSON for writes.
+**Result:** JSONB is 53-74% slower than JSON for writes.
 
 ### 3. Oracle JCT Surprises
 Oracle's OSON format handles fragmented documents (many attributes) **better than MongoDB**:
-- 200 attributes: Oracle 744ms vs MongoDB 829ms
-- Multi-attribute degradation: Oracle 2.5x vs MongoDB 2.7x
+- 200 attributes: Oracle 699ms vs MongoDB 804ms
+- Multi-attribute degradation: Oracle 2.7x vs MongoDB 3.0x
 
 ### 4. MongoDB's Flat Curve Dominates
 MongoDB maintains near-constant performance:
-- 10B: 300ms
-- 4KB: 353ms (only 18% slower!)
+- 10B: 274ms
+- 4KB: 339ms (only 23% slower!)
 
 Compare to PostgreSQL:
-- 10B: 196ms
-- 4KB: 16,297ms (83x slower!)
+- 10B: 192ms
+- 4KB: 15910ms (82x slower!)
 
 ---
 
@@ -126,8 +126,8 @@ Compare to PostgreSQL:
 ### By Document Size
 | Size | 1st | 2nd | 3rd |
 |------|-----|-----|-----|
-| 10B | PG-JSON | Oracle | MongoDB |
-| 200B | Oracle | MongoDB | PG-JSON |
+| 10B | PG-JSON | PG-JSONB | Oracle |
+| 200B | MongoDB | Oracle | PG-JSON |
 | 1KB | MongoDB | Oracle | PG-JSON |
 | 2KB | MongoDB | Oracle | PG-JSON |
 | 4KB | MongoDB | Oracle | PG-JSON |
@@ -136,9 +136,9 @@ Compare to PostgreSQL:
 | Attrs | 1st | 2nd | 3rd |
 |-------|-----|-----|-----|
 | 1 | MongoDB | Oracle | PG-JSON |
-| 10 | Oracle | MongoDB | PG-JSON |
-| 50 | Oracle | MongoDB | PG-JSON |
-| 100 | Oracle | MongoDB | PG-JSON |
+| 10 | PG-JSON | PG-JSONB | Oracle |
+| 50 | MongoDB | Oracle | PG-JSON |
+| 100 | MongoDB | Oracle | PG-JSON |
 | 200 | Oracle | MongoDB | PG-JSON |
 
 ### Overall Winner
@@ -151,10 +151,10 @@ Compare to PostgreSQL:
 ## Data Files Generated
 
 1. **THREE_PLATFORM_COMPARISON.md** - Comprehensive 500+ line analysis
-2. **combined_benchmark_results.json** - All results in structured format
-3. **article_benchmark_results.json** - MongoDB + PostgreSQL results
-4. **oracle_benchmark_results.json** - Oracle JCT results
-5. **BENCHMARK_ANALYSIS.md** - Original 2-platform analysis
+2. **article_benchmark_results.json** - All results in structured format
+3. **benchmark_report.html** - Interactive HTML report with Chart.js visualizations
+4. **QUICK_REFERENCE.txt** - Quick reference card
+5. **BENCHMARK_FILES_INDEX.md** - Index of all generated files
 
 ---
 
@@ -163,7 +163,7 @@ Compare to PostgreSQL:
 This benchmark conclusively demonstrates:
 
 1. **MongoDB and Oracle are co-winners** - MongoDB wins large single-attribute docs, Oracle wins complex multi-attribute docs
-2. **Oracle surprises by beating MongoDB** - 11% faster at the most complex test (200 attributes)
+2. **Oracle surprises by beating MongoDB** - 15% faster at the most complex test (200 attributes)
 3. **PostgreSQL's TOAST is a deal-breaker** - Catastrophic degradation above 2KB
 4. **Choose by workload type** - MongoDB for simple large docs, Oracle for complex structured docs
 5. **Use the right tool** - Don't force relational databases into document storage roles
@@ -176,6 +176,6 @@ This benchmark conclusively demonstrates:
 ---
 
 **Test completed:** October 30, 2025
-**Total tests:** 30 configurations × 3 platforms × 3 runs = 270 benchmark runs
+**Total tests:** 50 configurations × 3 runs = 150 benchmark runs
 **Duration:** ~20 minutes
 **Reproducibility:** Deterministic seed (42) ensures consistent results

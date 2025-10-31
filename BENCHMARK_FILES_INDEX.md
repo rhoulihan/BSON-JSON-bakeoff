@@ -38,51 +38,43 @@ ASCII-art formatted quick reference card:
 - Recommendations checklist
 - Easy to print/share
 
-### **BENCHMARK_ANALYSIS.md**
-**Size:** ~30KB | **Lines:** 400+
+### **benchmark_report.html**
+**Type:** Interactive HTML Report
 
-Original 2-platform analysis (MongoDB vs PostgreSQL):
-- Validates LinkedIn article findings
-- Detailed TOAST analysis
-- JSON vs JSONB comparison
-- Article claim verification
+Rich HTML report with Chart.js visualizations:
+- Interactive line graphs for all test configurations
+- Single-attribute and multi-attribute performance charts
+- Throughput comparison visualizations
+- Degradation analysis charts
+- Detailed results tables with color-coded winners
+- Responsive design with gradient styling
 
 ---
 
 ## 📁 Raw Data Files
 
-### **combined_benchmark_results.json**
-**Format:** JSON
-
-Unified results from all three platforms:
-```json
-{
-  "test_environment": {...},
-  "single_attribute_results": {
-    "mongodb": [...],
-    "oracle_jct": [...],
-    "postgresql_json": [...],
-    "postgresql_jsonb": [...]
-  },
-  "multi_attribute_results": {...}
-}
-```
-
 ### **article_benchmark_results.json**
 **Format:** JSON
 
-MongoDB + PostgreSQL results matching article tests:
-- Single-attribute tests (10B to 4KB)
-- Multi-attribute tests (10×1B to 200×20B)
-- 3 runs per configuration
-
-### **oracle_benchmark_results.json**
-**Format:** JSON
-
-Oracle JSON Collection Tables standalone results:
-- Same test configurations as MongoDB/PostgreSQL
-- OSON binary format performance
-- Single and multi-attribute tests
+Unified results from all platforms:
+```json
+{
+  "timestamp": "2025-10-30T17:52:12.254763",
+  "configuration": {
+    "documents": 10000,
+    "runs": 3,
+    "batch_size": 500
+  },
+  "single_attribute": {
+    "mongodb": [...],
+    "oracle_no_index": [...],
+    "oracle_with_index": [...],
+    "postgresql_json": [...],
+    "postgresql_jsonb": [...]
+  },
+  "multi_attribute": {...}
+}
+```
 
 ---
 
@@ -95,7 +87,8 @@ Main benchmark script that runs:
 - MongoDB BSON tests
 - PostgreSQL JSON tests
 - PostgreSQL JSONB tests
-- Oracle JCT tests (if available)
+- Oracle JCT tests (with and without index)
+- Database lifecycle management (start/stop databases automatically)
 - All single & multi-attribute configurations
 
 Usage:
@@ -103,17 +96,32 @@ Usage:
 python3 run_article_benchmarks.py
 ```
 
-### **run_oracle_only_benchmarks.py**
+### **generate_html_report.py**
 **Language:** Python 3
 
-Oracle-specific benchmark script:
-- Runs only Oracle JCT tests
-- Useful for adding Oracle results separately
-- Same test configurations as main script
+Generates interactive HTML report with Chart.js visualizations:
+- Reads article_benchmark_results.json
+- Creates 5 interactive line charts
+- Generates detailed results tables
+- Outputs benchmark_report.html
 
 Usage:
 ```bash
-python3 run_oracle_only_benchmarks.py
+python3 generate_html_report.py
+```
+
+### **update_all_documents.py**
+**Language:** Python 3
+
+Updates all analysis documents with exact benchmark results:
+- Updates EXECUTIVE_SUMMARY.md
+- Updates QUICK_REFERENCE.txt
+- Updates BENCHMARK_FILES_INDEX.md
+- Ensures all numbers match article_benchmark_results.json
+
+Usage:
+```bash
+python3 update_all_documents.py
 ```
 
 ---
@@ -123,20 +131,20 @@ python3 run_oracle_only_benchmarks.py
 ### Console Output Summary
 ```
 SINGLE-ATTRIBUTE RESULTS (10K docs)
-Payload      MongoDB      Oracle JCT   PG-JSON      PG-JSONB    
-10B              300ms        285ms        196ms        221ms
-200B             300ms        286ms        757ms       1720ms
-1KB              320ms        365ms       3846ms       7241ms
-2KB              324ms        363ms       8087ms      13201ms
-4KB              353ms        471ms      16297ms      25192ms
+Payload      MongoDB      Oracle JCT   PG-JSON      PG-JSONB
+10B              274ms        257ms        192ms        206ms
+200B             256ms        281ms        676ms       1616ms
+1KB              268ms        320ms       3590ms       6531ms
+2KB              325ms        352ms       7583ms      12502ms
+4KB              339ms        434ms      15910ms      24447ms
 
 MULTI-ATTRIBUTE RESULTS (10K docs)
-Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB    
-10×1B                305ms        296ms        234ms        273ms
-10×20B               310ms        319ms        792ms       1685ms
-50×20B               389ms        418ms       4321ms       8133ms
-100×20B              554ms        620ms       8604ms      15476ms
-200×20B              829ms        744ms      17361ms      30196ms
+Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
+10×1B                265ms        263ms        216ms        248ms
+10×20B               271ms        275ms        726ms       1624ms
+50×20B               375ms        363ms       4080ms       7296ms
+100×20B              597ms        527ms       8135ms      14629ms
+200×20B              804ms        699ms      16173ms      28253ms
 ```
 
 ---
@@ -149,31 +157,31 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 
    **MongoDB BSON:**
    - Best for large single-attribute documents (1-4KB)
-   - Best consistency (1.18x degradation)
+   - Best consistency (1.24x degradation)
    - Proven ecosystem and horizontal scaling
 
    **Oracle JCT:**
    - Best for complex multi-attribute documents (100-200+ attrs)
-   - Wins most complex test: 200 attributes (744ms vs MongoDB 829ms - 11% faster!)
-   - Wins small documents (10-200B)
+   - Wins most complex test: 200 attributes (699ms vs MongoDB 804ms - 13% faster!)
+   - Wins small documents (10B)
    - Surprisingly robust, SQL access
 
 2. **PostgreSQL JSONB** - Niche use only
-   - Only wins tiny docs (10B)
-   - 114x degradation (catastrophic)
+   - Only wins tiny docs when not indexed
+   - 119x degradation (catastrophic)
    - TOAST cliff at 2KB
 
 ### Critical Numbers
 
 **Single-Attribute 4KB (Large single-attribute docs):**
-- MongoDB: 353ms ✓ (Winner)
-- Oracle: 471ms (33% slower)
-- PG-JSONB: 25,192ms (71x slower!)
+- MongoDB: 339ms ✓ (Winner)
+- Oracle: 434ms (28% slower)
+- PG-JSONB: 24447ms (72x slower!)
 
 **Multi-Attribute 200×20B (Complex multi-attribute docs):**
-- Oracle: 744ms ✓ (Winner - 11% FASTER than MongoDB!)
-- MongoDB: 829ms
-- PG-JSONB: 30,196ms (41x slower!)
+- Oracle: 699ms ✓ (Winner - 15% FASTER than MongoDB!)
+- MongoDB: 804ms
+- PG-JSONB: 28253ms (40x slower!)
 
 ---
 
@@ -188,15 +196,15 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 **Configurations Tested:**
 - Single-attribute: 5 sizes (10B, 200B, 1KB, 2KB, 4KB)
 - Multi-attribute: 5 configs (10×1B, 10×20B, 50×20B, 100×20B, 200×20B)
-- Total: 30 test configurations
-- Per platform: 90 benchmark runs
-- All platforms: 270 total runs
+- Total: 50 test configurations (5 databases × 10 configs)
+- Per platform: 30 benchmark runs
+- All platforms: 150 total runs
 
 **Environment:**
 - OS: Oracle Linux 9.6
 - PostgreSQL: 17.6
 - Oracle: 26ai Free
-- MongoDB: (version)
+- MongoDB: Latest
 
 **Duration:** ~20 minutes total
 
@@ -208,17 +216,19 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 1. Read **EXECUTIVE_SUMMARY.md**
 2. Review **QUICK_REFERENCE.txt**
 3. Check specific concerns in **THREE_PLATFORM_COMPARISON.md**
+4. View interactive charts in **benchmark_report.html**
 
 ### For Technical Analysis
 1. Start with **THREE_PLATFORM_COMPARISON.md**
-2. Review raw data in **combined_benchmark_results.json**
-3. Cross-reference with **BENCHMARK_ANALYSIS.md**
+2. Review raw data in **article_benchmark_results.json**
+3. Explore interactive visualizations in **benchmark_report.html**
 
 ### For Reproducing Tests
-1. Review test scripts: `run_article_benchmarks.py`
+1. Review test script: `run_article_benchmarks.py`
 2. Check configurations in source code
 3. Run tests with: `python3 run_article_benchmarks.py`
 4. Compare results with JSON files
+5. Generate new report with: `python3 generate_html_report.py`
 
 ---
 
@@ -232,7 +242,7 @@ Use **MongoDB or Oracle JCT** for document workloads. They are co-winners, each 
 - **Oracle JCT:** Surprisingly robust, WINS for complex multi-attribute documents (100-200+ attrs)
 - **PostgreSQL:** Only for tiny docs (<200B) in hybrid systems
 
-**Key finding:** Oracle beats MongoDB by 11% at the most complex test (200 attributes)
+**Key finding:** Oracle beats MongoDB by 13% at the most complex test (200 attributes)
 
 ---
 
