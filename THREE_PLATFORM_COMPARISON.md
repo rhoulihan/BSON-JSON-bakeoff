@@ -17,7 +17,7 @@ This benchmark compares three leading document storage technologies across singl
 
 🥉 **PostgreSQL JSONB** - Only suitable for tiny docs (<200B), catastrophic degradation above 2KB
 
-**Key finding:** Oracle WINS the realistic and complex test (200 attributes) by 15%, wins 3 of 5 multi-attribute tests, and scales better (2.66x vs MongoDB's 3.03x). MongoDB's only win is the corner case of storing 4KB as a single blob.
+**Key finding:** Oracle compares favorably as documents gain size and structure and wins outright in the most complex test (200 attributes) by 15%. Oracle also wins 3 of 5 multi-attribute tests, and scales better (2.66x vs MongoDB's 3.03x). MongoDB's only win is the less common case of storing large chunks of data in simple documents.
 
 ---
 
