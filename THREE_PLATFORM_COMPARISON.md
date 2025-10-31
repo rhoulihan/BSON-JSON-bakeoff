@@ -38,10 +38,10 @@ This benchmark compares three leading document storage technologies across singl
 | Configuration | MongoDB BSON | Oracle (no idx) | Oracle (idx) | PostgreSQL JSON | PostgreSQL JSONB |
 |---------------|--------------|-----------------|--------------|-----------------|------------------|
 | **10×1B** | 265ms | 284ms | 263ms ✓ | 216ms ✓✓ | 248ms |
-| **10×20B** | 271ms ✓ | 281ms | 275ms | 726ms | 1,624ms |
-| **50×20B** | 375ms | 381ms | 363ms ✓ | 4,080ms | 7,296ms |
-| **100×20B** | 597ms | 540ms ✓ | 527ms ✓✓ | 8,135ms | 14,629ms |
-| **200×20B** | 804ms | 700ms ✓ | 699ms ✓✓ | 16,173ms | 28,253ms |
+| **10×20B** | 271ms ✓✓ | 281ms | 275ms | 726ms | 1,624ms |
+| **50×20B** | 375ms | 381ms | 363ms ✓✓ | 4,080ms | 7,296ms |
+| **100×20B** | 597ms | 540ms | 527ms ✓✓ | 8,135ms | 14,629ms |
+| **200×20B** | 804ms | 700ms | 699ms ✓✓ | 16,173ms | 28,253ms |
 
 ✓ = Best among MongoDB/Oracle
 ✓✓ = Overall best (including PostgreSQL for tiny docs)
