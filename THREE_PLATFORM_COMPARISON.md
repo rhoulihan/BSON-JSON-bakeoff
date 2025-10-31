@@ -237,7 +237,7 @@ JSONB requires:
 - ✓ Most consistent performance required (1.24x degradation)
 
 ### Choose Oracle JCT When:
-- ✓ **Documents have many attributes (100-200+)** ← **WINS HERE!**
+- ✓ **Documents have many attributes (up to 200+)** ← **WINS HERE!**
 - ✓ Existing Oracle infrastructure
 - ✓ Need SQL access to JSON documents
 - ✓ Complex structured documents (GenAI, content management)
