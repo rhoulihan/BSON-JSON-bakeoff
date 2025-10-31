@@ -177,7 +177,7 @@ The TOAST threshold hits PostgreSQL hard:
 ### Where Oracle JCT Wins
 
 1. **Small documents** (10B): 257-264ms vs 274ms (4-6% faster)
-2. **Multi-attribute documents** (200 attrs): 699-700ms vs 804ms (**13-15% faster!**)
+2. **Multi-attribute documents** (up to 200 attrs): 699-700ms vs 804ms (**13-15% faster!**)
 3. **Multi-attribute scaling**: 2.46-2.66x vs 3.03x degradation
 4. **Index overhead nearly free**: <3% difference indexed vs non-indexed
 5. **Enterprise features**: ACID compliance, Oracle integration
