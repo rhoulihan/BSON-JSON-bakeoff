@@ -23,6 +23,42 @@ def generate_html_report(data, output_file="benchmark_report.html"):
     sizes_single = [10, 200, 1000, 2000, 4000]
     sizes_multi_labels = ['10×1B', '10×20B', '50×20B', '100×20B', '200×20B']
 
+    # Pre-extract all data arrays
+    mongo_single_time = [r['time_ms'] for r in single_attr['mongodb']]
+    oracle_no_single_time = [r['time_ms'] for r in single_attr['oracle_no_index']]
+    oracle_idx_single_time = [r['time_ms'] for r in single_attr['oracle_with_index']]
+    pg_json_single_time = [r['time_ms'] for r in single_attr['postgresql_json']]
+    pg_jsonb_single_time = [r['time_ms'] for r in single_attr['postgresql_jsonb']]
+
+    mongo_single_throughput = [round(r['throughput']) for r in single_attr['mongodb']]
+    oracle_no_single_throughput = [round(r['throughput']) for r in single_attr['oracle_no_index']]
+    oracle_idx_single_throughput = [round(r['throughput']) for r in single_attr['oracle_with_index']]
+    pg_json_single_throughput = [round(r['throughput']) for r in single_attr['postgresql_json']]
+    pg_jsonb_single_throughput = [round(r['throughput']) for r in single_attr['postgresql_jsonb']]
+
+    mongo_multi_time = [r['time_ms'] for r in multi_attr['mongodb']]
+    oracle_no_multi_time = [r['time_ms'] for r in multi_attr['oracle_no_index']]
+    oracle_idx_multi_time = [r['time_ms'] for r in multi_attr['oracle_with_index']]
+    pg_json_multi_time = [r['time_ms'] for r in multi_attr['postgresql_json']]
+    pg_jsonb_multi_time = [r['time_ms'] for r in multi_attr['postgresql_jsonb']]
+
+    mongo_multi_throughput = [round(r['throughput']) for r in multi_attr['mongodb']]
+    oracle_no_multi_throughput = [round(r['throughput']) for r in multi_attr['oracle_no_index']]
+    oracle_idx_multi_throughput = [round(r['throughput']) for r in multi_attr['oracle_with_index']]
+    pg_json_multi_throughput = [round(r['throughput']) for r in multi_attr['postgresql_json']]
+    pg_jsonb_multi_throughput = [round(r['throughput']) for r in multi_attr['postgresql_jsonb']]
+
+    # Calculate degradation
+    mongo_single_deg = round(mongo_single_time[-1] / mongo_single_time[0], 2)
+    oracle_idx_single_deg = round(oracle_idx_single_time[-1] / oracle_idx_single_time[0], 2)
+    pg_json_single_deg = round(pg_json_single_time[-1] / pg_json_single_time[0], 2)
+    pg_jsonb_single_deg = round(pg_jsonb_single_time[-1] / pg_jsonb_single_time[0], 2)
+
+    mongo_multi_deg = round(mongo_multi_time[-1] / mongo_multi_time[0], 2)
+    oracle_idx_multi_deg = round(oracle_idx_multi_time[-1] / oracle_idx_multi_time[0], 2)
+    pg_json_multi_deg = round(pg_json_multi_time[-1] / pg_json_multi_time[0], 2)
+    pg_jsonb_multi_deg = round(pg_jsonb_multi_time[-1] / pg_jsonb_multi_time[0], 2)
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -667,7 +703,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {[r['time_ms'] for r in single_attr['mongodb']]},
+                        data: {mongo_single_time},
                         borderColor: colors.mongodb.line,
                         backgroundColor: colors.mongodb.fill,
                         borderWidth: 3,
@@ -678,7 +714,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (no index)',
-                        data: {[r['time_ms'] for r in single_attr['oracle_no_index']]},
+                        data: {oracle_no_single_time},
                         borderColor: colors.oracle_no.line,
                         backgroundColor: colors.oracle_no.fill,
                         borderWidth: 3,
@@ -689,7 +725,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (with index)',
-                        data: {[r['time_ms'] for r in single_attr['oracle_with_index']]},
+                        data: {oracle_idx_single_time},
                         borderColor: colors.oracle_idx.line,
                         backgroundColor: colors.oracle_idx.fill,
                         borderWidth: 3,
@@ -700,7 +736,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSON',
-                        data: {[r['time_ms'] for r in single_attr['postgresql_json']]},
+                        data: {pg_json_single_time},
                         borderColor: colors.pg_json.line,
                         backgroundColor: colors.pg_json.fill,
                         borderWidth: 3,
@@ -711,7 +747,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSONB',
-                        data: {[r['time_ms'] for r in single_attr['postgresql_jsonb']]},
+                        data: {pg_jsonb_single_time},
                         borderColor: colors.pg_jsonb.line,
                         backgroundColor: colors.pg_jsonb.fill,
                         borderWidth: 3,
@@ -754,7 +790,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {[round(r['throughput']) for r in single_attr['mongodb']]},
+                        data: {mongo_single_throughput},
                         borderColor: colors.mongodb.line,
                         backgroundColor: colors.mongodb.fill,
                         borderWidth: 3,
@@ -765,7 +801,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (no index)',
-                        data: {[round(r['throughput']) for r in single_attr['oracle_no_index']]},
+                        data: {oracle_no_single_throughput},
                         borderColor: colors.oracle_no.line,
                         backgroundColor: colors.oracle_no.fill,
                         borderWidth: 3,
@@ -776,7 +812,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (with index)',
-                        data: {[round(r['throughput']) for r in single_attr['oracle_with_index']]},
+                        data: {oracle_idx_single_throughput},
                         borderColor: colors.oracle_idx.line,
                         backgroundColor: colors.oracle_idx.fill,
                         borderWidth: 3,
@@ -787,7 +823,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSON',
-                        data: {[round(r['throughput']) for r in single_attr['postgresql_json']]},
+                        data: {pg_json_single_throughput},
                         borderColor: colors.pg_json.line,
                         backgroundColor: colors.pg_json.fill,
                         borderWidth: 3,
@@ -798,7 +834,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSONB',
-                        data: {[round(r['throughput']) for r in single_attr['postgresql_jsonb']]},
+                        data: {pg_jsonb_single_throughput},
                         borderColor: colors.pg_jsonb.line,
                         backgroundColor: colors.pg_jsonb.fill,
                         borderWidth: 3,
@@ -841,7 +877,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {[r['time_ms'] for r in multi_attr['mongodb']]},
+                        data: {mongo_multi_time},
                         borderColor: colors.mongodb.line,
                         backgroundColor: colors.mongodb.fill,
                         borderWidth: 3,
@@ -852,7 +888,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (no index)',
-                        data: {[r['time_ms'] for r in multi_attr['oracle_no_index']]},
+                        data: {oracle_no_multi_time},
                         borderColor: colors.oracle_no.line,
                         backgroundColor: colors.oracle_no.fill,
                         borderWidth: 3,
@@ -863,7 +899,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (with index)',
-                        data: {[r['time_ms'] for r in multi_attr['oracle_with_index']]},
+                        data: {oracle_idx_multi_time},
                         borderColor: colors.oracle_idx.line,
                         backgroundColor: colors.oracle_idx.fill,
                         borderWidth: 3,
@@ -874,7 +910,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSON',
-                        data: {[r['time_ms'] for r in multi_attr['postgresql_json']]},
+                        data: {pg_json_multi_time},
                         borderColor: colors.pg_json.line,
                         backgroundColor: colors.pg_json.fill,
                         borderWidth: 3,
@@ -885,7 +921,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSONB',
-                        data: {[r['time_ms'] for r in multi_attr['postgresql_jsonb']]},
+                        data: {pg_jsonb_multi_time},
                         borderColor: colors.pg_jsonb.line,
                         backgroundColor: colors.pg_jsonb.fill,
                         borderWidth: 3,
@@ -928,7 +964,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {[round(r['throughput']) for r in multi_attr['mongodb']]},
+                        data: {mongo_multi_throughput},
                         borderColor: colors.mongodb.line,
                         backgroundColor: colors.mongodb.fill,
                         borderWidth: 3,
@@ -939,7 +975,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (no index)',
-                        data: {[round(r['throughput']) for r in multi_attr['oracle_no_index']]},
+                        data: {oracle_no_multi_throughput},
                         borderColor: colors.oracle_no.line,
                         backgroundColor: colors.oracle_no.fill,
                         borderWidth: 3,
@@ -950,7 +986,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'Oracle JCT (with index)',
-                        data: {[round(r['throughput']) for r in multi_attr['oracle_with_index']]},
+                        data: {oracle_idx_multi_throughput},
                         borderColor: colors.oracle_idx.line,
                         backgroundColor: colors.oracle_idx.fill,
                         borderWidth: 3,
@@ -961,7 +997,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSON',
-                        data: {[round(r['throughput']) for r in multi_attr['postgresql_json']]},
+                        data: {pg_json_multi_throughput},
                         borderColor: colors.pg_json.line,
                         backgroundColor: colors.pg_json.fill,
                         borderWidth: 3,
@@ -972,7 +1008,7 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                     }},
                     {{
                         label: 'PostgreSQL JSONB',
-                        data: {[round(r['throughput']) for r in multi_attr['postgresql_jsonb']]},
+                        data: {pg_jsonb_multi_throughput},
                         borderColor: colors.pg_jsonb.line,
                         backgroundColor: colors.pg_jsonb.fill,
                         borderWidth: 3,
@@ -1015,35 +1051,28 @@ def generate_html_report(data, output_file="benchmark_report.html"):
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: [1.24, 3.03],
+                        data: [{mongo_single_deg}, {mongo_multi_deg}],
                         backgroundColor: colors.mongodb.line,
                         borderColor: colors.mongodb.line,
                         borderWidth: 2
                     }},
                     {{
-                        label: 'Oracle JCT (no index)',
-                        data: [1.67, 2.46],
-                        backgroundColor: colors.oracle_no.line,
-                        borderColor: colors.oracle_no.line,
-                        borderWidth: 2
-                    }},
-                    {{
                         label: 'Oracle JCT (with index)',
-                        data: [1.69, 2.66],
+                        data: [{oracle_idx_single_deg}, {oracle_idx_multi_deg}],
                         backgroundColor: colors.oracle_idx.line,
                         borderColor: colors.oracle_idx.line,
                         borderWidth: 2
                     }},
                     {{
                         label: 'PostgreSQL JSON',
-                        data: [82.9, 74.9],
+                        data: [{pg_json_single_deg}, {pg_json_multi_deg}],
                         backgroundColor: colors.pg_json.line,
                         borderColor: colors.pg_json.line,
                         borderWidth: 2
                     }},
                     {{
                         label: 'PostgreSQL JSONB',
-                        data: [118.7, 113.9],
+                        data: [{pg_jsonb_single_deg}, {pg_jsonb_multi_deg}],
                         backgroundColor: colors.pg_jsonb.line,
                         borderColor: colors.pg_jsonb.line,
                         borderWidth: 2
