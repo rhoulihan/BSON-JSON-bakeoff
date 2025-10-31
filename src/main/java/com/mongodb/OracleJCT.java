@@ -90,11 +90,26 @@ public class OracleJCT implements DatabaseOperations {
             // Create index on 'targets' array for the indexed collection (only when runIndexTest is true)
             if (Main.runIndexTest && collectionNames.contains("indexed")) {
                 try {
+                    System.out.println("Creating JSON search index on indexed collection...");
                     stmt.execute("CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON");
-                    System.out.println("Created search index on indexed collection");
+                    System.out.println("✓ Successfully created search index idx_targets");
+
+                    // Verify index was created
+                    ResultSet idxRs = stmt.executeQuery(
+                        "SELECT idx_name, idx_status FROM user_indexes WHERE idx_name = 'IDX_TARGETS'"
+                    );
+                    if (idxRs.next()) {
+                        System.out.println("✓ Verified: Index " + idxRs.getString(1) + " exists with status: " + idxRs.getString(2));
+                    } else {
+                        System.out.println("⚠ Warning: Index not found in user_indexes");
+                    }
+                    idxRs.close();
                 } catch (SQLException e) {
-                    System.err.println("Warning: Could not create search index: " + e.getMessage());
+                    System.err.println("✗ ERROR: Could not create search index: " + e.getMessage());
+                    e.printStackTrace();
                 }
+            } else if (collectionNames.contains("indexed")) {
+                System.out.println("Note: Running WITHOUT search index (use -i flag to enable index)");
             }
 
             connection.commit();
