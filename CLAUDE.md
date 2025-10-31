@@ -121,9 +121,13 @@ Documents are generated in `Main.java` with:
 **JSON Collection Tables** (`-oj` flag):
 - Simpler approach: direct JSON document storage (no relational mapping)
 - Uses OSON binary format for storage efficiency
-- JSON search indexes for array queries (`CREATE SEARCH INDEX`)
+- **Two index types available for array queries:**
+  - **Search index** (default): `CREATE SEARCH INDEX` - Full-text index for JSON documents
+  - **Multivalue index** (with `-mv` flag): `CREATE MULTIVALUE INDEX idx ON table (data.array[*].string())` - Direct array element indexing (7x FASTER than search index)
 - JSON path expressions for queries (`JSON_EXISTS`, `JSON_VALUE`)
 - More MongoDB-like semantics in Oracle
+- **Performance note**: Multivalue indexes with explicit `[*].string()` syntax significantly outperform search indexes for array containment queries (4,110 vs 572 queries/sec)
+- **Syntax requirements**: Multivalue index requires `[*].string()` in index creation and `JSON_EXISTS(data, '$.array?(@ == $val)' PASSING ? AS "val")` for queries
 
 ## Test Patterns
 
@@ -147,6 +151,7 @@ Documents are generated in `Main.java` with:
 - `-d`: Direct table insertion for Oracle (bypasses Duality View bug)
 - `-j`: Use JSONB instead of JSON (PostgreSQL only)
 - `-i`: Run indexed vs non-indexed comparison, OR enable $in condition for queries
+- `-mv`: Use multivalue index instead of search index (Oracle JCT only, requires `-i` flag, 7x faster than search index for array queries)
 - `-q N`: Run query test with N array elements per document
 - `-l N`: Run $lookup test with N links
 - `-r N`: Run each test N times, report best result

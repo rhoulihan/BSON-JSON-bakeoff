@@ -17,46 +17,79 @@ def extract_data(data):
     """Extract and organize all benchmark data."""
     single = data['single_attribute']
     multi = data['multi_attribute']
+    config = data.get('configuration', {})
+
+    # Determine oracle key - handle both old and new format
+    oracle_key = 'oracle_jct' if 'oracle_jct' in single else 'oracle_with_index'
 
     # Extract all data arrays
     extracted = {
         # Single-attribute times
         'mongo_single_time': [r['time_ms'] for r in single['mongodb']],
-        'oracle_no_single_time': [r['time_ms'] for r in single['oracle_no_index']],
-        'oracle_idx_single_time': [r['time_ms'] for r in single['oracle_with_index']],
+        'oracle_single_time': [r['time_ms'] for r in single[oracle_key]],
         'pg_json_single_time': [r['time_ms'] for r in single['postgresql_json']],
         'pg_jsonb_single_time': [r['time_ms'] for r in single['postgresql_jsonb']],
 
         # Single-attribute throughput
         'mongo_single_tput': [int(r['throughput']) for r in single['mongodb']],
-        'oracle_no_single_tput': [int(r['throughput']) for r in single['oracle_no_index']],
-        'oracle_idx_single_tput': [int(r['throughput']) for r in single['oracle_with_index']],
+        'oracle_single_tput': [int(r['throughput']) for r in single[oracle_key]],
         'pg_json_single_tput': [int(r['throughput']) for r in single['postgresql_json']],
         'pg_jsonb_single_tput': [int(r['throughput']) for r in single['postgresql_jsonb']],
 
         # Multi-attribute times
         'mongo_multi_time': [r['time_ms'] for r in multi['mongodb']],
-        'oracle_no_multi_time': [r['time_ms'] for r in multi['oracle_no_index']],
-        'oracle_idx_multi_time': [r['time_ms'] for r in multi['oracle_with_index']],
+        'oracle_multi_time': [r['time_ms'] for r in multi[oracle_key]],
         'pg_json_multi_time': [r['time_ms'] for r in multi['postgresql_json']],
         'pg_jsonb_multi_time': [r['time_ms'] for r in multi['postgresql_jsonb']],
 
         # Multi-attribute throughput
         'mongo_multi_tput': [int(r['throughput']) for r in multi['mongodb']],
-        'oracle_no_multi_tput': [int(r['throughput']) for r in multi['oracle_no_index']],
-        'oracle_idx_multi_tput': [int(r['throughput']) for r in multi['oracle_with_index']],
+        'oracle_multi_tput': [int(r['throughput']) for r in multi[oracle_key]],
         'pg_json_multi_tput': [int(r['throughput']) for r in multi['postgresql_json']],
         'pg_jsonb_multi_tput': [int(r['throughput']) for r in multi['postgresql_jsonb']],
+
+        # Query tests enabled flag
+        'has_query_data': config.get('query_tests_enabled', False)
     }
+
+    # Extract query data if available
+    if extracted['has_query_data']:
+        # Check if first result has query data
+        if 'query_time_ms' in single['mongodb'][0] and single['mongodb'][0]['query_time_ms']:
+            extracted.update({
+                # Single-attribute query times
+                'mongo_single_qtime': [r.get('query_time_ms', 0) for r in single['mongodb']],
+                'oracle_single_qtime': [r.get('query_time_ms', 0) for r in single[oracle_key]],
+                'pg_json_single_qtime': [r.get('query_time_ms', 0) for r in single['postgresql_json']],
+                'pg_jsonb_single_qtime': [r.get('query_time_ms', 0) for r in single['postgresql_jsonb']],
+
+                # Single-attribute query throughput
+                'mongo_single_qtput': [int(r.get('query_throughput', 0)) for r in single['mongodb']],
+                'oracle_single_qtput': [int(r.get('query_throughput', 0)) for r in single[oracle_key]],
+                'pg_json_single_qtput': [int(r.get('query_throughput', 0)) for r in single['postgresql_json']],
+                'pg_jsonb_single_qtput': [int(r.get('query_throughput', 0)) for r in single['postgresql_jsonb']],
+
+                # Multi-attribute query times
+                'mongo_multi_qtime': [r.get('query_time_ms', 0) for r in multi['mongodb']],
+                'oracle_multi_qtime': [r.get('query_time_ms', 0) for r in multi[oracle_key]],
+                'pg_json_multi_qtime': [r.get('query_time_ms', 0) for r in multi['postgresql_json']],
+                'pg_jsonb_multi_qtime': [r.get('query_time_ms', 0) for r in multi['postgresql_jsonb']],
+
+                # Multi-attribute query throughput
+                'mongo_multi_qtput': [int(r.get('query_throughput', 0)) for r in multi['mongodb']],
+                'oracle_multi_qtput': [int(r.get('query_throughput', 0)) for r in multi[oracle_key]],
+                'pg_json_multi_qtput': [int(r.get('query_throughput', 0)) for r in multi['postgresql_json']],
+                'pg_jsonb_multi_qtput': [int(r.get('query_throughput', 0)) for r in multi['postgresql_jsonb']],
+            })
 
     # Calculate degradation
     extracted['mongo_single_deg'] = round(extracted['mongo_single_time'][-1] / extracted['mongo_single_time'][0], 2)
-    extracted['oracle_idx_single_deg'] = round(extracted['oracle_idx_single_time'][-1] / extracted['oracle_idx_single_time'][0], 2)
+    extracted['oracle_single_deg'] = round(extracted['oracle_single_time'][-1] / extracted['oracle_single_time'][0], 2)
     extracted['pg_json_single_deg'] = round(extracted['pg_json_single_time'][-1] / extracted['pg_json_single_time'][0], 2)
     extracted['pg_jsonb_single_deg'] = round(extracted['pg_jsonb_single_time'][-1] / extracted['pg_jsonb_single_time'][0], 2)
 
     extracted['mongo_multi_deg'] = round(extracted['mongo_multi_time'][-1] / extracted['mongo_multi_time'][0], 2)
-    extracted['oracle_idx_multi_deg'] = round(extracted['oracle_idx_multi_time'][-1] / extracted['oracle_idx_multi_time'][0], 2)
+    extracted['oracle_multi_deg'] = round(extracted['oracle_multi_time'][-1] / extracted['oracle_multi_time'][0], 2)
     extracted['pg_json_multi_deg'] = round(extracted['pg_json_multi_time'][-1] / extracted['pg_json_multi_time'][0], 2)
     extracted['pg_jsonb_multi_deg'] = round(extracted['pg_jsonb_multi_time'][-1] / extracted['pg_jsonb_multi_time'][0], 2)
 
@@ -64,50 +97,78 @@ def extract_data(data):
 
 def build_charts_js(d):
     """Build the JavaScript charts code with actual data."""
-    return '''
-        // Benchmark data
+    js = '''
+        // Benchmark data (all databases with indexes)
         const benchmarkData = {
+            hasQueryData: ''' + str(d.get('has_query_data', False)).lower() + ''',
             singleTime: {
                 mongo: ''' + str(d['mongo_single_time']) + ''',
-                oracleNo: ''' + str(d['oracle_no_single_time']) + ''',
-                oracleIdx: ''' + str(d['oracle_idx_single_time']) + ''',
+                oracle: ''' + str(d['oracle_single_time']) + ''',
                 pgJson: ''' + str(d['pg_json_single_time']) + ''',
                 pgJsonb: ''' + str(d['pg_jsonb_single_time']) + '''
             },
             singleTput: {
                 mongo: ''' + str(d['mongo_single_tput']) + ''',
-                oracleNo: ''' + str(d['oracle_no_single_tput']) + ''',
-                oracleIdx: ''' + str(d['oracle_idx_single_tput']) + ''',
+                oracle: ''' + str(d['oracle_single_tput']) + ''',
                 pgJson: ''' + str(d['pg_json_single_tput']) + ''',
                 pgJsonb: ''' + str(d['pg_jsonb_single_tput']) + '''
             },
             multiTime: {
                 mongo: ''' + str(d['mongo_multi_time']) + ''',
-                oracleNo: ''' + str(d['oracle_no_multi_time']) + ''',
-                oracleIdx: ''' + str(d['oracle_idx_multi_time']) + ''',
+                oracle: ''' + str(d['oracle_multi_time']) + ''',
                 pgJson: ''' + str(d['pg_json_multi_time']) + ''',
                 pgJsonb: ''' + str(d['pg_jsonb_multi_time']) + '''
             },
             multiTput: {
                 mongo: ''' + str(d['mongo_multi_tput']) + ''',
-                oracleNo: ''' + str(d['oracle_no_multi_tput']) + ''',
-                oracleIdx: ''' + str(d['oracle_idx_multi_tput']) + ''',
+                oracle: ''' + str(d['oracle_multi_tput']) + ''',
                 pgJson: ''' + str(d['pg_json_multi_tput']) + ''',
                 pgJsonb: ''' + str(d['pg_jsonb_multi_tput']) + '''
             },
             degradation: {
                 mongo: [''' + str(d['mongo_single_deg']) + ''', ''' + str(d['mongo_multi_deg']) + '''],
-                oracleIdx: [''' + str(d['oracle_idx_single_deg']) + ''', ''' + str(d['oracle_idx_multi_deg']) + '''],
+                oracle: [''' + str(d['oracle_single_deg']) + ''', ''' + str(d['oracle_multi_deg']) + '''],
                 pgJson: [''' + str(d['pg_json_single_deg']) + ''', ''' + str(d['pg_json_multi_deg']) + '''],
                 pgJsonb: [''' + str(d['pg_jsonb_single_deg']) + ''', ''' + str(d['pg_jsonb_multi_deg']) + ''']
-            }
-        };
+            }'''
+
+    # Add query data if available
+    if d.get('has_query_data', False):
+        js += ''',
+            singleQueryTime: {
+                mongo: ''' + str(d.get('mongo_single_qtime', [])) + ''',
+                oracle: ''' + str(d.get('oracle_single_qtime', [])) + ''',
+                pgJson: ''' + str(d.get('pg_json_single_qtime', [])) + ''',
+                pgJsonb: ''' + str(d.get('pg_jsonb_single_qtime', [])) + '''
+            },
+            singleQueryTput: {
+                mongo: ''' + str(d.get('mongo_single_qtput', [])) + ''',
+                oracle: ''' + str(d.get('oracle_single_qtput', [])) + ''',
+                pgJson: ''' + str(d.get('pg_json_single_qtput', [])) + ''',
+                pgJsonb: ''' + str(d.get('pg_jsonb_single_qtput', [])) + '''
+            },
+            multiQueryTime: {
+                mongo: ''' + str(d.get('mongo_multi_qtime', [])) + ''',
+                oracle: ''' + str(d.get('oracle_multi_qtime', [])) + ''',
+                pgJson: ''' + str(d.get('pg_json_multi_qtime', [])) + ''',
+                pgJsonb: ''' + str(d.get('pg_jsonb_multi_qtime', [])) + '''
+            },
+            multiQueryTput: {
+                mongo: ''' + str(d.get('mongo_multi_qtput', [])) + ''',
+                oracle: ''' + str(d.get('oracle_multi_qtput', [])) + ''',
+                pgJson: ''' + str(d.get('pg_json_multi_qtput', [])) + ''',
+                pgJsonb: ''' + str(d.get('pg_jsonb_multi_qtput', [])) + '''
+            }'''
+
+    js += '''
+        };'''
+
+    return js + '''
 
         // Color scheme
         const colors = {
             mongodb: { line: 'rgb(0, 237, 100)', fill: 'rgba(0, 237, 100, 0.1)' },
-            oracle_no: { line: 'rgb(255, 99, 71)', fill: 'rgba(255, 99, 71, 0.1)' },
-            oracle_idx: { line: 'rgb(220, 20, 60)', fill: 'rgba(220, 20, 60, 0.1)' },
+            oracle: { line: 'rgb(220, 20, 60)', fill: 'rgba(220, 20, 60, 0.1)' },
             pg_json: { line: 'rgb(70, 130, 180)', fill: 'rgba(70, 130, 180, 0.1)' },
             pg_jsonb: { line: 'rgb(0, 0, 139)', fill: 'rgba(0, 0, 139, 0.1)' }
         };
@@ -130,8 +191,7 @@ def build_charts_js(d):
                 labels: [10, 200, 1000, 2000, 4000],
                 datasets: [
                     { label: 'MongoDB BSON', data: benchmarkData.singleTime.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (no index)', data: benchmarkData.singleTime.oracleNo, borderColor: colors.oracle_no.line, backgroundColor: colors.oracle_no.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (with index)', data: benchmarkData.singleTime.oracleIdx, borderColor: colors.oracle_idx.line, backgroundColor: colors.oracle_idx.fill, borderWidth: 3, tension: 0.4, fill: true },
+                    { label: 'Oracle JCT', data: benchmarkData.singleTime.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSON', data: benchmarkData.singleTime.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSONB', data: benchmarkData.singleTime.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
                 ]
@@ -146,8 +206,7 @@ def build_charts_js(d):
                 labels: [10, 200, 1000, 2000, 4000],
                 datasets: [
                     { label: 'MongoDB BSON', data: benchmarkData.singleTput.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (no index)', data: benchmarkData.singleTput.oracleNo, borderColor: colors.oracle_no.line, backgroundColor: colors.oracle_no.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (with index)', data: benchmarkData.singleTput.oracleIdx, borderColor: colors.oracle_idx.line, backgroundColor: colors.oracle_idx.fill, borderWidth: 3, tension: 0.4, fill: true },
+                    { label: 'Oracle JCT', data: benchmarkData.singleTput.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSON', data: benchmarkData.singleTput.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSONB', data: benchmarkData.singleTput.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
                 ]
@@ -162,8 +221,7 @@ def build_charts_js(d):
                 labels: ['10×1B', '10×20B', '50×20B', '100×20B', '200×20B'],
                 datasets: [
                     { label: 'MongoDB BSON', data: benchmarkData.multiTime.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (no index)', data: benchmarkData.multiTime.oracleNo, borderColor: colors.oracle_no.line, backgroundColor: colors.oracle_no.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (with index)', data: benchmarkData.multiTime.oracleIdx, borderColor: colors.oracle_idx.line, backgroundColor: colors.oracle_idx.fill, borderWidth: 3, tension: 0.4, fill: true },
+                    { label: 'Oracle JCT', data: benchmarkData.multiTime.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSON', data: benchmarkData.multiTime.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSONB', data: benchmarkData.multiTime.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
                 ]
@@ -178,8 +236,7 @@ def build_charts_js(d):
                 labels: ['10×1B', '10×20B', '50×20B', '100×20B', '200×20B'],
                 datasets: [
                     { label: 'MongoDB BSON', data: benchmarkData.multiTput.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (no index)', data: benchmarkData.multiTput.oracleNo, borderColor: colors.oracle_no.line, backgroundColor: colors.oracle_no.fill, borderWidth: 3, tension: 0.4, fill: true },
-                    { label: 'Oracle JCT (with index)', data: benchmarkData.multiTput.oracleIdx, borderColor: colors.oracle_idx.line, backgroundColor: colors.oracle_idx.fill, borderWidth: 3, tension: 0.4, fill: true },
+                    { label: 'Oracle JCT', data: benchmarkData.multiTput.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSON', data: benchmarkData.multiTput.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
                     { label: 'PostgreSQL JSONB', data: benchmarkData.multiTput.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
                 ]
@@ -194,7 +251,7 @@ def build_charts_js(d):
                 labels: ['Single-Attribute (10B→4KB)', 'Multi-Attribute (10×1B→200×20B)'],
                 datasets: [
                     { label: 'MongoDB BSON', data: benchmarkData.degradation.mongo, backgroundColor: colors.mongodb.line, borderColor: colors.mongodb.line, borderWidth: 2 },
-                    { label: 'Oracle JCT (with index)', data: benchmarkData.degradation.oracleIdx, backgroundColor: colors.oracle_idx.line, borderColor: colors.oracle_idx.line, borderWidth: 2 },
+                    { label: 'Oracle JCT', data: benchmarkData.degradation.oracle, backgroundColor: colors.oracle.line, borderColor: colors.oracle.line, borderWidth: 2 },
                     { label: 'PostgreSQL JSON', data: benchmarkData.degradation.pgJson, backgroundColor: colors.pg_json.line, borderColor: colors.pg_json.line, borderWidth: 2 },
                     { label: 'PostgreSQL JSONB', data: benchmarkData.degradation.pgJsonb, backgroundColor: colors.pg_jsonb.line, borderColor: colors.pg_jsonb.line, borderWidth: 2 }
                 ]
@@ -205,12 +262,75 @@ def build_charts_js(d):
                 plugins: { ...chartOptions.plugins, tooltip: { callbacks: { label: function(context) { return context.dataset.label + ': ' + context.parsed.y + 'x'; } } } }
             }
         });
+
+        // Query Performance Charts (if data available)
+        if (benchmarkData.hasQueryData) {
+            // Single-Attribute Query Time Chart
+            new Chart(document.getElementById('singleQueryTimeChart'), {
+                type: 'line',
+                data: {
+                    labels: [10, 200, 1000, 2000, 4000],
+                    datasets: [
+                        { label: 'MongoDB BSON', data: benchmarkData.singleQueryTime.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'Oracle JCT', data: benchmarkData.singleQueryTime.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSON', data: benchmarkData.singleQueryTime.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSONB', data: benchmarkData.singleQueryTime.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
+                    ]
+                },
+                options: { ...chartOptions, scales: { y: { title: { display: true, text: 'Query Time (ms)' }, beginAtZero: true }, x: { title: { display: true, text: 'Document Size (bytes)' } } } }
+            });
+
+            // Single-Attribute Query Throughput Chart
+            new Chart(document.getElementById('singleQueryTputChart'), {
+                type: 'line',
+                data: {
+                    labels: [10, 200, 1000, 2000, 4000],
+                    datasets: [
+                        { label: 'MongoDB BSON', data: benchmarkData.singleQueryTput.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'Oracle JCT', data: benchmarkData.singleQueryTput.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSON', data: benchmarkData.singleQueryTput.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSONB', data: benchmarkData.singleQueryTput.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
+                    ]
+                },
+                options: { ...chartOptions, scales: { y: { title: { display: true, text: 'Query Throughput (queries/sec)' }, beginAtZero: true }, x: { title: { display: true, text: 'Document Size (bytes)' } } } }
+            });
+
+            // Multi-Attribute Query Time Chart
+            new Chart(document.getElementById('multiQueryTimeChart'), {
+                type: 'line',
+                data: {
+                    labels: ['10×1B', '10×20B', '50×20B', '100×20B', '200×20B'],
+                    datasets: [
+                        { label: 'MongoDB BSON', data: benchmarkData.multiQueryTime.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'Oracle JCT', data: benchmarkData.multiQueryTime.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSON', data: benchmarkData.multiQueryTime.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSONB', data: benchmarkData.multiQueryTime.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
+                    ]
+                },
+                options: { ...chartOptions, scales: { y: { title: { display: true, text: 'Query Time (ms)' }, beginAtZero: true }, x: { title: { display: true, text: 'Attribute Configuration' } } } }
+            });
+
+            // Multi-Attribute Query Throughput Chart
+            new Chart(document.getElementById('multiQueryTputChart'), {
+                type: 'line',
+                data: {
+                    labels: ['10×1B', '10×20B', '50×20B', '100×20B', '200×20B'],
+                    datasets: [
+                        { label: 'MongoDB BSON', data: benchmarkData.multiQueryTput.mongo, borderColor: colors.mongodb.line, backgroundColor: colors.mongodb.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'Oracle JCT', data: benchmarkData.multiQueryTput.oracle, borderColor: colors.oracle.line, backgroundColor: colors.oracle.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSON', data: benchmarkData.multiQueryTput.pgJson, borderColor: colors.pg_json.line, backgroundColor: colors.pg_json.fill, borderWidth: 3, tension: 0.4, fill: true },
+                        { label: 'PostgreSQL JSONB', data: benchmarkData.multiQueryTput.pgJsonb, borderColor: colors.pg_jsonb.line, backgroundColor: colors.pg_jsonb.fill, borderWidth: 3, tension: 0.4, fill: true }
+                    ]
+                },
+                options: { ...chartOptions, scales: { y: { title: { display: true, text: 'Query Throughput (queries/sec)' }, beginAtZero: true }, x: { title: { display: true, text: 'Attribute Configuration' } } } }
+            });
+        }
 '''
 
 def generate_html(data_dict, output_file='benchmark_report.html'):
-    """Generate HTML report."""
-    
-    percent_oracle_wins = int(((data_dict['mongo_multi_time'][-1] - data_dict['oracle_idx_multi_time'][-1]) / data_dict['oracle_idx_multi_time'][-1]) * 100)
+    """Generate HTML report (all databases with indexes)."""
+
+    percent_oracle_wins = int(((data_dict['mongo_multi_time'][-1] - data_dict['oracle_multi_time'][-1]) / data_dict['oracle_multi_time'][-1]) * 100)
     
     html = '''<!DOCTYPE html>
 <html lang="en">
@@ -281,7 +401,37 @@ def generate_html(data_dict, output_file='benchmark_report.html'):
                     <div class="chart-title">Scalability Comparison (Lower is Better)</div>
                     <canvas id="degradationChart"></canvas>
                 </div>
+            </section>'''
+
+    # Add query performance sections if data is available
+    if data_dict.get('has_query_data', False):
+        html += '''
+
+            <section class="section">
+                <h2 class="section-title">Query Performance - Single Attribute</h2>
+                <div class="chart-container">
+                    <div class="chart-title">Query Time (Lower is Better)</div>
+                    <canvas id="singleQueryTimeChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Query Throughput (Higher is Better)</div>
+                    <canvas id="singleQueryTputChart"></canvas>
+                </div>
             </section>
+
+            <section class="section">
+                <h2 class="section-title">Query Performance - Multi Attribute</h2>
+                <div class="chart-container">
+                    <div class="chart-title">Query Time (Lower is Better)</div>
+                    <canvas id="multiQueryTimeChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Query Throughput (Higher is Better)</div>
+                    <canvas id="multiQueryTputChart"></canvas>
+                </div>
+            </section>'''
+
+    html += '''
 
             <section class="section">
                 <h2 class="section-title">Key Results</h2>
@@ -304,7 +454,7 @@ def generate_html(data_dict, output_file='benchmark_report.html'):
                         <tr>
                             <td>Multi-Attr 200×20B</td>
                             <td class="winner">Oracle JCT</td>
-                            <td>''' + str(data_dict['oracle_idx_multi_time'][-1]) + ''' ms</td>
+                            <td>''' + str(data_dict['oracle_multi_time'][-1]) + ''' ms</td>
                             <td>Beats MongoDB by ''' + str(percent_oracle_wins) + '''%!</td>
                         </tr>
                         <tr>
@@ -320,7 +470,7 @@ def generate_html(data_dict, output_file='benchmark_report.html'):
 
         <footer>
             <p><strong>Benchmark Report</strong></p>
-            <p>10,000 documents | 3 runs | Batch size: 500</p>
+            <p>10,000 documents | 3 runs | Batch size: 500 | All databases with indexes</p>
             <p><a href="https://github.com/rhoulihan/BSON-JSON-bakeoff">View on GitHub</a></p>
         </footer>
     </div>

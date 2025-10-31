@@ -16,11 +16,13 @@ import re
 from datetime import datetime
 import sys
 import time
+import argparse
 
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
 NUM_RUNS = 3
 BATCH_SIZE = 500
+QUERY_LINKS = 10  # Number of array elements for query tests
 
 # Test configurations matching the article
 SINGLE_ATTR_TESTS = [
@@ -39,13 +41,12 @@ MULTI_ATTR_TESTS = [
     {"size": 4000, "attrs": 200, "desc": "200 attributes × 20B = 4000B"},
 ]
 
-# Databases to test - with service management info
+# Databases to test - with service management info (all using indexes)
 DATABASES = [
-    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": "", "service": "mongod", "db_type": "mongodb"},
-    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p", "service": "postgresql-17", "db_type": "postgresql"},
-    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j", "service": "postgresql-17", "db_type": "postgresql"},
-    {"name": "Oracle JCT (no index)", "key": "oracle_no_index", "flags": "-oj", "service": "oracle-free-26ai", "db_type": "oracle"},
-    {"name": "Oracle JCT (with index)", "key": "oracle_with_index", "flags": "-oj -i", "service": "oracle-free-26ai", "db_type": "oracle"},
+    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": "-i", "service": "mongod", "db_type": "mongodb"},
+    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p -i", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j -i", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "Oracle JCT", "key": "oracle_jct", "flags": "-oj -i -mv", "service": "oracle-free-26ai", "db_type": "oracle"},
 ]
 
 def stop_all_databases():
@@ -106,9 +107,15 @@ def stop_database(service_name):
     time.sleep(2)
     print("✓ Stopped")
 
-def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size):
-    """Run a single benchmark test."""
-    cmd = f"java -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size} {num_docs}"
+def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None):
+    """Run a single benchmark test, optionally with query tests."""
+    cmd = f"java -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
+
+    # Add query test flag if specified
+    if query_links is not None:
+        cmd += f" -q {query_links}"
+
+    cmd += f" {num_docs}"
 
     try:
         result = subprocess.run(
@@ -116,24 +123,28 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size):
             shell=True,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=900  # 15 minutes per test
         )
 
         # Parse result for "Best time to insert"
         pattern = rf"Best time to insert {num_docs} documents with {size}B payload in {attrs} attributes? into indexed: (\d+)ms"
         match = re.search(pattern, result.stdout)
 
+        response = {
+            "success": False,
+            "size": size,
+            "attrs": attrs,
+            "num_docs": num_docs
+        }
+
         if match:
             time_ms = int(match.group(1))
             throughput = round(num_docs / (time_ms / 1000), 2)
-            return {
+            response.update({
                 "success": True,
                 "time_ms": time_ms,
-                "throughput": throughput,
-                "size": size,
-                "attrs": attrs,
-                "num_docs": num_docs
-            }
+                "throughput": throughput
+            })
         else:
             # Try alternative pattern with "attribute" singular/plural
             alt_pattern = rf"Best time to insert {num_docs} documents with {size}B payload in \d+ attributes? into indexed: (\d+)ms"
@@ -141,29 +152,49 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size):
             if alt_match:
                 time_ms = int(alt_match.group(1))
                 throughput = round(num_docs / (time_ms / 1000), 2)
-                return {
+                response.update({
                     "success": True,
                     "time_ms": time_ms,
-                    "throughput": throughput,
-                    "size": size,
-                    "attrs": attrs,
-                    "num_docs": num_docs
-                }
+                    "throughput": throughput
+                })
+            else:
+                print(f"    Warning: Could not parse output")
+                return {"success": False, "error": "Could not parse output"}
 
-            print(f"    Warning: Could not parse output")
-            return {"success": False, "error": "Could not parse output"}
+        # If query tests were requested, parse query results
+        if query_links is not None:
+            # Parse query time: "Best query time for N ID's with M element link arrays...: XXXms"
+            query_pattern = rf"Best query time for (\d+) ID's with {query_links} element link arrays.*?: (\d+)ms"
+            query_match = re.search(query_pattern, result.stdout)
+
+            if query_match:
+                queries_executed = int(query_match.group(1))
+                query_time_ms = int(query_match.group(2))
+                query_throughput = round(queries_executed / (query_time_ms / 1000), 2)
+                response.update({
+                    "query_time_ms": query_time_ms,
+                    "query_throughput": query_throughput,
+                    "queries_executed": queries_executed,
+                    "query_links": query_links
+                })
+            else:
+                # Query test may have failed or not been executed
+                response["query_time_ms"] = None
+                response["query_error"] = "Could not parse query results"
+
+        return response
 
     except subprocess.TimeoutExpired:
-        print(f"    ERROR: Timeout after 300 seconds")
+        print(f"    ERROR: Timeout after 900 seconds")
         return {"success": False, "error": "Timeout"}
     except Exception as e:
         print(f"    ERROR: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def run_test_suite(test_configs, test_type):
+def run_test_suite(test_configs, test_type, enable_queries=False):
     """Run a complete test suite (single or multi attribute)."""
     print(f"\n{'='*80}")
-    print(f"{test_type.upper()} ATTRIBUTE TESTS")
+    print(f"{test_type.upper()} ATTRIBUTE TESTS" + (" WITH QUERIES" if enable_queries else ""))
     print(f"{'='*80}")
 
     results = {}
@@ -197,12 +228,16 @@ def run_test_suite(test_configs, test_type):
                 test['attrs'],
                 NUM_DOCS,
                 NUM_RUNS,
-                BATCH_SIZE
+                BATCH_SIZE,
+                query_links=QUERY_LINKS if enable_queries else None
             )
 
             if result['success']:
+                output = f"✓ {result['time_ms']}ms ({result['throughput']:,.0f} docs/sec)"
+                if enable_queries and 'query_time_ms' in result and result['query_time_ms']:
+                    output += f" | Query: {result['query_time_ms']}ms ({result['query_throughput']:,.0f} queries/sec)"
                 results[db['key']].append(result)
-                print(f"✓ {result['time_ms']}ms ({result['throughput']:,.0f} docs/sec)")
+                print(output)
             else:
                 results[db['key']].append(result)
                 print(f"✗ {result.get('error', 'Failed')}")
@@ -216,14 +251,14 @@ def run_test_suite(test_configs, test_type):
 def generate_summary_table(single_results, multi_results):
     """Generate a summary comparison table."""
     print(f"\n{'='*80}")
-    print("SUMMARY: Single-Attribute Results (10K documents)")
+    print("SUMMARY: Single-Attribute Results (10K documents) - All with indexes")
     print(f"{'='*80}")
-    print(f"{'Payload':<12} {'MongoDB':<12} {'PG-JSON':<12} {'PG-JSONB':<12} {'Oracle':<12} {'Oracle+Idx':<12}")
+    print(f"{'Payload':<12} {'MongoDB':<12} {'PG-JSON':<12} {'PG-JSONB':<12} {'Oracle JCT':<12}")
     print("-" * 80)
 
     for i, test in enumerate(SINGLE_ATTR_TESTS):
         row = f"{test['size']}B"
-        for db_key in ['mongodb', 'postgresql_json', 'postgresql_jsonb', 'oracle_no_index', 'oracle_with_index']:
+        for db_key in ['mongodb', 'postgresql_json', 'postgresql_jsonb', 'oracle_jct']:
             if db_key in single_results and i < len(single_results[db_key]):
                 result = single_results[db_key][i]
                 if result['success']:
@@ -235,14 +270,14 @@ def generate_summary_table(single_results, multi_results):
         print(row)
 
     print(f"\n{'='*80}")
-    print("SUMMARY: Multi-Attribute Results (10K documents)")
+    print("SUMMARY: Multi-Attribute Results (10K documents) - All with indexes")
     print(f"{'='*80}")
-    print(f"{'Config':<20} {'MongoDB':<12} {'PG-JSON':<12} {'PG-JSONB':<12} {'Oracle':<12} {'Oracle+Idx':<12}")
+    print(f"{'Config':<20} {'MongoDB':<12} {'PG-JSON':<12} {'PG-JSONB':<12} {'Oracle JCT':<12}")
     print("-" * 80)
 
     for i, test in enumerate(MULTI_ATTR_TESTS):
         row = f"{test['attrs']}×{test['size']//test['attrs']}B"
-        for db_key in ['mongodb', 'postgresql_json', 'postgresql_jsonb', 'oracle_no_index', 'oracle_with_index']:
+        for db_key in ['mongodb', 'postgresql_json', 'postgresql_jsonb', 'oracle_jct']:
             if db_key in multi_results and i < len(multi_results[db_key]):
                 result = multi_results[db_key][i]
                 if result['success']:
@@ -255,12 +290,37 @@ def generate_summary_table(single_results, multi_results):
 
 def main():
     """Main execution."""
+    parser = argparse.ArgumentParser(description='Run benchmark tests replicating LinkedIn article')
+    parser.add_argument('--queries', '-q', action='store_true',
+                        help=f'Include query tests with {QUERY_LINKS} links per document')
+    parser.add_argument('--mongodb', action='store_true', help='Run MongoDB tests')
+    parser.add_argument('--oracle', action='store_true', help='Run Oracle JCT tests')
+    parser.add_argument('--postgresql', action='store_true', help='Run PostgreSQL tests (JSON and JSONB)')
+    args = parser.parse_args()
+
+    enable_queries = args.queries
+
+    # Filter databases based on arguments (if no args, run all)
+    global DATABASES
+    if args.mongodb or args.oracle or args.postgresql:
+        enabled_databases = []
+        for db in DATABASES:
+            if (args.mongodb and db['db_type'] == 'mongodb') or \
+               (args.oracle and db['db_type'] == 'oracle') or \
+               (args.postgresql and db['db_type'] == 'postgresql'):
+                enabled_databases.append(db)
+        DATABASES = enabled_databases
+
     print(f"\n{'='*80}")
     print("BENCHMARK: Replicating LinkedIn Article Tests")
     print(f"{'='*80}")
     print(f"Document count: {NUM_DOCS:,}")
     print(f"Runs per test: {NUM_RUNS} (best time reported)")
     print(f"Batch size: {BATCH_SIZE}")
+    if enable_queries:
+        print(f"Query tests: ENABLED ({QUERY_LINKS} links per document)")
+    else:
+        print(f"Query tests: DISABLED (use --queries to enable)")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
@@ -268,10 +328,10 @@ def main():
     stop_all_databases()
 
     # Run single-attribute tests
-    single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE")
+    single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries)
 
     # Run multi-attribute tests
-    multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI")
+    multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries)
 
     # Generate summary
     generate_summary_table(single_results, multi_results)
@@ -282,7 +342,9 @@ def main():
         "configuration": {
             "documents": NUM_DOCS,
             "runs": NUM_RUNS,
-            "batch_size": BATCH_SIZE
+            "batch_size": BATCH_SIZE,
+            "query_tests_enabled": enable_queries,
+            "query_links": QUERY_LINKS if enable_queries else None
         },
         "single_attribute": single_results,
         "multi_attribute": multi_results

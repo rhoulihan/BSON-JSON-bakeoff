@@ -28,6 +28,7 @@ public class Main {
     public static boolean runSingleAttrTest = true;
     public static boolean useDirectTableInsert = false;
     public static Integer numRuns = 1;
+    public static boolean useMultivalueIndex = false;
 
     public static void main(String[] args) {
         String dbType = "mongodb"; // default to MongoDB
@@ -81,6 +82,11 @@ public class Main {
                 case "-d":
                     System.out.println("Using direct table insertion (Oracle only)...");
                     useDirectTableInsert = true;
+                    break;
+
+                case "-mv":
+                    System.out.println("Using multivalue index instead of search index (Oracle only)...");
+                    useMultivalueIndex = true;
                     break;
 
                 case "-r":

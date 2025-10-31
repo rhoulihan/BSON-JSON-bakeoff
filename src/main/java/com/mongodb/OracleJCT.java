@@ -63,11 +63,16 @@ public class OracleJCT implements DatabaseOperations {
                 throw new UnsupportedOperationException("Lookup test not yet implemented for OracleJCT");
             }
             for (String name : collectionNames) {
-                // Drop search index if it exists (must be done before dropping table)
+                // Drop index if it exists (must be done before dropping table)
                 if (name.equals("indexed")) {
                     try {
-                        stmt.execute("DROP SEARCH INDEX idx_targets");
-                        System.out.println("Dropped search index idx_targets");
+                        if (Main.useMultivalueIndex) {
+                            stmt.execute("DROP INDEX idx_targets");
+                            System.out.println("Dropped multivalue index idx_targets");
+                        } else {
+                            stmt.execute("DROP SEARCH INDEX idx_targets");
+                            System.out.println("Dropped search index idx_targets");
+                        }
                     } catch (SQLException e) {
                         // Ignore if index doesn't exist
                     }
@@ -90,26 +95,50 @@ public class OracleJCT implements DatabaseOperations {
             // Create index on 'targets' array for the indexed collection (only when runIndexTest is true)
             if (Main.runIndexTest && collectionNames.contains("indexed")) {
                 try {
-                    System.out.println("Creating JSON search index on indexed collection...");
-                    stmt.execute("CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON");
-                    System.out.println("✓ Successfully created search index idx_targets");
+                    if (Main.useMultivalueIndex) {
+                        System.out.println("Creating multivalue index on indexed collection...");
+                        stmt.execute("CREATE MULTIVALUE INDEX idx_targets ON indexed (data.targets[*].string())");
+                        System.out.println("✓ Successfully created multivalue index idx_targets");
 
-                    // Verify index was created
-                    ResultSet idxRs = stmt.executeQuery(
-                        "SELECT idx_name, idx_status FROM user_indexes WHERE idx_name = 'IDX_TARGETS'"
-                    );
-                    if (idxRs.next()) {
-                        System.out.println("✓ Verified: Index " + idxRs.getString(1) + " exists with status: " + idxRs.getString(2));
+                        // Verify index was created and check its type
+                        ResultSet idxRs = stmt.executeQuery(
+                            "SELECT index_name, index_type, status FROM user_indexes WHERE index_name = 'IDX_TARGETS'"
+                        );
+                        if (idxRs.next()) {
+                            String idxType = idxRs.getString(2);
+                            System.out.println("✓ Verified: Index " + idxRs.getString(1) +
+                                             " (Type: " + idxType + ") with status: " + idxRs.getString(3));
+                            if (!idxType.contains("MVI") && !idxType.contains("FUNCTION-BASED")) {
+                                System.out.println("⚠ WARNING: Expected FUNCTION-BASED MVI but got: " + idxType);
+                            }
+                        } else {
+                            System.out.println("⚠ Warning: Index not found in user_indexes");
+                        }
+                        idxRs.close();
                     } else {
-                        System.out.println("⚠ Warning: Index not found in user_indexes");
+                        System.out.println("Creating JSON search index on indexed collection...");
+                        stmt.execute("CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON");
+                        System.out.println("✓ Successfully created search index idx_targets");
+
+                        // Verify index was created
+                        ResultSet idxRs = stmt.executeQuery(
+                            "SELECT idx_name, idx_status FROM user_indexes WHERE idx_name = 'IDX_TARGETS'"
+                        );
+                        if (idxRs.next()) {
+                            System.out.println("✓ Verified: Index " + idxRs.getString(1) + " exists with status: " + idxRs.getString(2));
+                        } else {
+                            System.out.println("⚠ Warning: Index not found in user_indexes");
+                        }
+                        idxRs.close();
                     }
-                    idxRs.close();
                 } catch (SQLException e) {
-                    System.err.println("✗ ERROR: Could not create search index: " + e.getMessage());
+                    String indexType = Main.useMultivalueIndex ? "multivalue index" : "search index";
+                    System.err.println("✗ ERROR: Could not create " + indexType + ": " + e.getMessage());
                     e.printStackTrace();
                 }
             } else if (collectionNames.contains("indexed")) {
-                System.out.println("Note: Running WITHOUT search index (use -i flag to enable index)");
+                String indexType = Main.useMultivalueIndex ? "multivalue index" : "search index";
+                System.out.println("Note: Running WITHOUT " + indexType + " (use -i flag to enable index)");
             }
 
             connection.commit();
@@ -191,7 +220,18 @@ public class OracleJCT implements DatabaseOperations {
     @Override
     public int queryDocumentsById(String collectionName, String id) {
         // Query documents where 'targets' array contains the specified id
-        String sql = "SELECT data FROM \"" + collectionName + "\" WHERE JSON_EXISTS(data, '$?(@.targets[*] == $id)' PASSING ? AS \"id\")";
+        // Use different query syntax depending on index type
+        String sql;
+
+        if (Main.useMultivalueIndex) {
+            // For multivalue index: use JSON_EXISTS with filter expression
+            // Index must be created with: CREATE MULTIVALUE INDEX idx_targets ON indexed (data.targets[*].string())
+            // This query results in: INDEX RANGE SCAN (MULTI VALUE) on IDX_TARGETS
+            sql = "SELECT data FROM \"" + collectionName + "\" WHERE JSON_EXISTS(data, '$.targets?(@ == $val)' PASSING ? AS \"val\")";
+        } else {
+            // For search index: use JSON_EXISTS with filter expression (optimized for search indexes)
+            sql = "SELECT data FROM \"" + collectionName + "\" WHERE JSON_EXISTS(data, '$?(@.targets[*] == $id)' PASSING ? AS \"id\")";
+        }
 
         try {
             PreparedStatement stmt = connection.prepareStatement(sql);
