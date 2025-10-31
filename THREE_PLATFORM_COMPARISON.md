@@ -88,9 +88,9 @@ The TOAST threshold hits PostgreSQL hard:
 
 **Key Insight:** MongoDB's flat curve dominates large single-attribute document workloads.
 
-### 4. Complex Multi-Attribute Documents (200 attributes) - THE DOMINANT REAL-WORLD USE CASE
+### 4. Complex Multi-Attribute Documents (up to 200 attributes) - Most common real world use case
 
-**Winner: Oracle JCT** (beats MongoDB by 15% in the most realistic test!)
+**Winner: Oracle JCT** (beats MongoDB by up to 15% in these more realistic tests!)
 
 **CRITICAL FINDING** for production document workloads with structure:
 - **Oracle (no idx)**: 700ms (2.46x slower than 10 attrs) ← **WINNER - Real use case**
