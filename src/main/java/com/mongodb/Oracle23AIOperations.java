@@ -210,7 +210,7 @@ public class Oracle23AIOperations implements DatabaseOperations {
                         )
                     );
                 }
-            } else {
+            } else if (dataSize > 0) {
                 payloadJson.put("data",
                     java.util.Base64.getEncoder().encodeToString(bytes)
                 );
@@ -223,7 +223,10 @@ public class Oracle23AIOperations implements DatabaseOperations {
                 // Build complete JSON document for duality view
                 JSONObject dualityDoc = new JSONObject();
                 dualityDoc.put("_id", doc.getString("_id"));
-                dualityDoc.put("data", payloadJson);
+                // Only add binary data field if dataSize > 0 (not using realistic data mode)
+                if (dataSize > 0) {
+                    dualityDoc.put("data", payloadJson);
+                }
 
                 // Add index array - transform to array of objects
                 JSONArray indexArray = doc.getJSONArray("targets");
@@ -434,7 +437,7 @@ public class Oracle23AIOperations implements DatabaseOperations {
                         )
                     );
                 }
-            } else {
+            } else if (dataSize > 0) {
                 payloadJson.put("data",
                     java.util.Base64.getEncoder().encodeToString(bytes)
                 );
@@ -447,8 +450,8 @@ public class Oracle23AIOperations implements DatabaseOperations {
             for (JSONObject doc : documents) {
                 String docId = doc.getString("_id");
                 docStmt.setString(1, docId);
-                // Use native OSON format for better performance
-                OracleJsonObject osonPayload = createOsonObject(payloadJson.toString());
+                // Use native OSON format for better performance (only if dataSize > 0)
+                OracleJsonObject osonPayload = dataSize > 0 ? createOsonObject(payloadJson.toString()) : createOsonObject("{}");
                 docStmt.setObject(2, osonPayload, OracleType.JSON);
                 docStmt.addBatch();
                 docBatchCount++;

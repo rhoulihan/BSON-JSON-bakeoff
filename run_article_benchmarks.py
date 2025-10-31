@@ -41,12 +41,12 @@ MULTI_ATTR_TESTS = [
     {"size": 4000, "attrs": 200, "desc": "200 attributes × 20B = 4000B"},
 ]
 
-# Databases to test - with service management info (all using indexes)
+# Databases to test - with service management info (all using indexes + realistic data)
 DATABASES = [
-    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": "-i", "service": "mongod", "db_type": "mongodb"},
-    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p -i", "service": "postgresql-17", "db_type": "postgresql"},
-    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j -i", "service": "postgresql-17", "db_type": "postgresql"},
-    {"name": "Oracle JCT", "key": "oracle_jct", "flags": "-oj -i -mv", "service": "oracle-free-26ai", "db_type": "oracle"},
+    {"name": "MongoDB (BSON)", "key": "mongodb", "flags": "-i -rd", "service": "mongod", "db_type": "mongodb"},
+    {"name": "PostgreSQL (JSON)", "key": "postgresql_json", "flags": "-p -i -rd", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j -i -rd", "service": "postgresql-17", "db_type": "postgresql"},
+    {"name": "Oracle JCT", "key": "oracle_jct", "flags": "-oj -i -mv -rd", "service": "oracle-free-26ai", "db_type": "oracle"},
 ]
 
 def stop_all_databases():

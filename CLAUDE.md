@@ -152,12 +152,17 @@ Documents are generated in `Main.java` with:
 - `-j`: Use JSONB instead of JSON (PostgreSQL only)
 - `-i`: Run indexed vs non-indexed comparison, OR enable $in condition for queries
 - `-mv`: Use multivalue index instead of search index (Oracle JCT only, requires `-i` flag, 7x faster than search index for array queries)
+- `-rd`: Use realistic nested data structures for multi-attribute tests instead of flat binary payloads
+  * Generates nested subdocuments up to 5 levels deep
+  * Random mix of strings, integers, decimals, binary data (up to 50 bytes), 3-4 item arrays, booleans
+  * Document sizes approximate target size specified by `-s` parameter
+  * Only affects multi-attribute tests; single-attribute tests remain unchanged (binary blob)
 - `-q N`: Run query test with N array elements per document
 - `-l N`: Run $lookup test with N links
 - `-r N`: Run each test N times, report best result
 - `-c FILE`: Load configuration from JSON file
 - `-s SIZES`: Comma-delimited payload sizes (e.g., `-s 100,1000,5000`)
-- `-n N`: Number of attributes to split payload across
+- `-n N`: Number of attributes to split payload across (affects realistic data structure complexity when using `-rd`)
 - `-b N`: Batch size for bulk insertions
 
 ## Development Notes

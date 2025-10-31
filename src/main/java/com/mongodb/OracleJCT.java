@@ -164,14 +164,17 @@ public class OracleJCT implements DatabaseOperations {
                 start = i * length;
                 data.put(String.format("data%d", i), Arrays.copyOfRange(bytes, start, start + length));
             }
-        } else {
+        } else if (dataSize > 0) {
             data.put("data", bytes);
         }
 
         List<OracleJsonObject> objects = new ArrayList<OracleJsonObject>();
         for (JSONObject json : documents) {
             OracleJsonObject obj = jsonFactory.createJsonTextValue(new StringReader(json.toString())).asJsonObject();
-            obj.put("data", data);
+            // Only add binary data field if dataSize > 0 (not using realistic data mode)
+            if (dataSize > 0) {
+                obj.put("data", data);
+            }
             if (Main.useInCondition) {
                 obj.remove("targets");
             }

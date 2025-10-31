@@ -29,6 +29,7 @@ public class Main {
     public static boolean useDirectTableInsert = false;
     public static Integer numRuns = 1;
     public static boolean useMultivalueIndex = false;
+    public static boolean useRealisticData = false;
 
     public static void main(String[] args) {
         String dbType = "mongodb"; // default to MongoDB
@@ -87,6 +88,11 @@ public class Main {
                 case "-mv":
                     System.out.println("Using multivalue index instead of search index (Oracle only)...");
                     useMultivalueIndex = true;
+                    break;
+
+                case "-rd":
+                    System.out.println("Using realistic nested data structures for multi-attribute tests...");
+                    useRealisticData = true;
                     break;
 
                 case "-r":
@@ -247,6 +253,131 @@ public class Main {
         return documents;
     }
 
+    /**
+     * Generate realistic nested document data with varied types
+     * Creates nested subdocuments up to maxDepth levels with random attributes
+     *
+     * @param targetSize Approximate target size in bytes for the generated data
+     * @param rand Random number generator for reproducibility
+     * @param currentDepth Current nesting level
+     * @param maxDepth Maximum nesting depth (default 5)
+     * @return JSONObject with nested realistic data
+     */
+    private static JSONObject generateRealisticData(int targetSize, java.util.Random rand, int currentDepth, int maxDepth) {
+        JSONObject data = new JSONObject();
+        int currentSize = 0;
+        int attributeCount = 0;
+
+        // Calculate attributes needed based on target size and current depth
+        // Deeper levels get fewer attributes
+        int maxAttrsAtLevel = Math.max(3, numAttrs / (currentDepth + 1));
+
+        while (currentSize < targetSize * 0.9 && attributeCount < maxAttrsAtLevel) {
+            String fieldName = "field_" + currentDepth + "_" + attributeCount;
+            int typeChoice = rand.nextInt(100);
+
+            if (typeChoice < 20 && currentDepth < maxDepth) {
+                // 20% chance: Nested subdocument (up to maxDepth levels)
+                int nestedSize = (targetSize - currentSize) / (maxAttrsAtLevel - attributeCount);
+                JSONObject nested = generateRealisticData(nestedSize, rand, currentDepth + 1, maxDepth);
+                data.put(fieldName, nested);
+                currentSize += nested.toString().length();
+
+            } else if (typeChoice < 35) {
+                // 15% chance: Array with 3-4 items
+                JSONArray array = new JSONArray();
+                int arraySize = 3 + rand.nextInt(2); // 3-4 items
+                for (int i = 0; i < arraySize; i++) {
+                    int arrayItemType = rand.nextInt(4);
+                    switch (arrayItemType) {
+                        case 0:
+                            array.put(rand.nextInt(10000));
+                            break;
+                        case 1:
+                            array.put(rand.nextDouble() * 1000);
+                            break;
+                        case 2:
+                            array.put(generateRandomString(rand, 10 + rand.nextInt(20)));
+                            break;
+                        case 3:
+                            array.put(rand.nextBoolean());
+                            break;
+                    }
+                }
+                data.put(fieldName, array);
+                currentSize += array.toString().length();
+
+            } else if (typeChoice < 50) {
+                // 15% chance: String (varying lengths)
+                int strLen = 10 + rand.nextInt(50);
+                String value = generateRandomString(rand, strLen);
+                data.put(fieldName, value);
+                currentSize += value.length() + fieldName.length() + 4;
+
+            } else if (typeChoice < 65) {
+                // 15% chance: Integer
+                data.put(fieldName, rand.nextInt(1000000));
+                currentSize += fieldName.length() + 10;
+
+            } else if (typeChoice < 80) {
+                // 15% chance: Double/Decimal
+                data.put(fieldName, rand.nextDouble() * 10000);
+                currentSize += fieldName.length() + 12;
+
+            } else {
+                // 20% chance: Binary data (up to 50 bytes)
+                int binSize = 10 + rand.nextInt(41); // 10-50 bytes
+                byte[] bytes = new byte[binSize];
+                rand.nextBytes(bytes);
+                // Convert to base64 string for JSON compatibility
+                data.put(fieldName, java.util.Base64.getEncoder().encodeToString(bytes));
+                currentSize += binSize * 4/3 + fieldName.length() + 4; // base64 expansion
+            }
+
+            attributeCount++;
+        }
+
+        return data;
+    }
+
+    /**
+     * Generate random alphanumeric string of specified length
+     */
+    private static String generateRandomString(java.util.Random rand, int length) {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(rand.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Add realistic data to documents for multi-attribute tests
+     * This replaces the flat binary payload approach with nested realistic structures
+     */
+    private static List<JSONObject> addRealisticDataToDocuments(List<JSONObject> documents, int targetSize) {
+        List<JSONObject> result = new ArrayList<>();
+        java.util.Random rand = new java.util.Random(42); // Fixed seed for reproducibility
+
+        for (JSONObject doc : documents) {
+            JSONObject newDoc = new JSONObject();
+            // Copy existing fields (_id, targets)
+            newDoc.put("_id", doc.get("_id"));
+            if (doc.has("targets") && !useInCondition) {
+                newDoc.put("targets", doc.get("targets"));
+            }
+
+            // Add realistic nested data structure
+            JSONObject realisticData = generateRealisticData(targetSize, rand, 0, 5);
+            newDoc.put("data", realisticData);
+
+            result.add(newDoc);
+        }
+
+        return result;
+    }
+
     private static void handleDataInsertions(Integer dataSize) {
         List<String> collectionNames = new ArrayList<>();
 
@@ -289,10 +420,24 @@ public class Main {
                 dbOperations.dropAndCreateCollections(collectionNames);
             }
 
+            // Multi-attribute test - use realistic data if flag is enabled
+            List<JSONObject> docsToInsert = documents;
+            if (useRealisticData) {
+                docsToInsert = addRealisticDataToDocuments(documents, dataSize);
+                if (run == 1 && numRuns > 1) {
+                    System.out.println("  Using realistic nested data structures (up to 5 levels deep)");
+                } else if (numRuns == 1) {
+                    System.out.println("Using realistic nested data structures (up to 5 levels deep)");
+                }
+            }
+
             for (String collectionName : collectionNames) {
-                long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, true);
+                // When using realistic data, set dataSize to 0 so insertDocuments doesn't add binary payload
+                int insertDataSize = useRealisticData ? 0 : dataSize;
+                long timeTaken = dbOperations.insertDocuments(collectionName, docsToInsert, insertDataSize, !useRealisticData);
                 if (numRuns == 1) {
-                    System.out.println(String.format("Time taken to insert %d documents with %dB payload in %d attributes into %s: %dms", numDocs, dataSize, numAttrs, collectionName, timeTaken));
+                    String dataType = useRealisticData ? "realistic nested data" : String.format("%dB payload in %d attributes", dataSize, numAttrs);
+                    System.out.println(String.format("Time taken to insert %d documents with %s into %s: %dms", numDocs, dataType, collectionName, timeTaken));
                 }
                 if (timeTaken < bestMultiAttrTime && timeTaken > 0) {
                     bestMultiAttrTime = timeTaken;
@@ -335,12 +480,16 @@ public class Main {
 
         // Print best results if running multiple times
         if (numRuns > 1) {
-            System.out.println(String.format("\n=== BEST RESULTS (%dB payload) ===", dataSize));
+            System.out.println(String.format("\n=== BEST RESULTS (%dB target size) ===", dataSize));
             if (runSingleAttrTest && bestSingleAttrTime != Long.MAX_VALUE) {
                 System.out.println(String.format("Best time to insert %d documents with %dB payload in 1 attribute into indexed: %dms", numDocs, dataSize, bestSingleAttrTime));
             }
             if (bestMultiAttrTime != Long.MAX_VALUE) {
-                System.out.println(String.format("Best time to insert %d documents with %dB payload in %d attributes into indexed: %dms", numDocs, dataSize, numAttrs, bestMultiAttrTime));
+                if (useRealisticData) {
+                    System.out.println(String.format("Best time to insert %d documents with realistic nested data (~%dB) into indexed: %dms", numDocs, dataSize, bestMultiAttrTime));
+                } else {
+                    System.out.println(String.format("Best time to insert %d documents with %dB payload in %d attributes into indexed: %dms", numDocs, dataSize, numAttrs, bestMultiAttrTime));
+                }
             }
             if (runQueryTest && bestQueryTime != Long.MAX_VALUE) {
                 String type = runLookupTest ? "using $lookup" : useInCondition ? "using $in condition" : "using multikey index";

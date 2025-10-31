@@ -79,7 +79,10 @@ public class MongoDBOperations implements DatabaseOperations {
         List<Document> bsonDocuments = new ArrayList<Document>();
         for (JSONObject json : documents) {
             bsonDocuments.add(Document.parse(json.toString()));
-            bsonDocuments.get(bsonDocuments.size() - 1).append("data", data);
+            // Only append binary data if dataSize > 0 (not using realistic data mode)
+            if (dataSize > 0) {
+                bsonDocuments.get(bsonDocuments.size() - 1).append("data", data);
+            }
             if (Main.runLookupTest || Main.useInCondition) {
                 bsonDocuments.get(bsonDocuments.size() - 1).remove("targets");
             }

@@ -88,17 +88,20 @@ public class PostgreSQLOperations implements DatabaseOperations {
                     int start = i * length;
                     dataJson.put("data" + i, Arrays.copyOfRange(bytes, start, start + length));
                 }
-            } else {
+            } else if (dataSize > 0) {
                 dataJson.put("data", bytes);
             }
-            
+
             long startTime = System.currentTimeMillis();
             int setIdx = 0;
             PGobject pgo = new PGobject();
             pgo.setType(Main.jsonType);
-            
+
             for (JSONObject json : documents) {
-                json.put("payload", dataJson);
+                // Only add payload field if dataSize > 0 (not using realistic data mode)
+                if (dataSize > 0) {
+                    json.put("payload", dataJson);
+                }
                 setIdx++;
                 
                 pgo.setValue(json.toString());
