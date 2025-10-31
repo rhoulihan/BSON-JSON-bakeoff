@@ -28,10 +28,10 @@ This benchmark compares three leading document storage technologies across singl
 | Payload | MongoDB BSON | Oracle (no idx) | Oracle (idx) | PostgreSQL JSON | PostgreSQL JSONB |
 |---------|--------------|-----------------|--------------|-----------------|------------------|
 | **10B** | 274ms | 264ms | 257ms ✓ | 192ms ✓✓ | 206ms |
-| **200B** | 256ms ✓ | 283ms | 281ms | 676ms | 1,616ms |
-| **1KB** | 268ms ✓ | 325ms | 320ms | 3,590ms | 6,531ms |
-| **2KB** | 325ms ✓ | 342ms | 352ms | 7,583ms | 12,502ms |
-| **4KB** | 339ms ✓ | 440ms | 434ms | 15,910ms | 24,447ms |
+| **200B** | 256ms ✓✓ | 283ms | 281ms | 676ms | 1,616ms |
+| **1KB** | 268ms ✓✓ | 325ms | 320ms | 3,590ms | 6,531ms |
+| **2KB** | 325ms ✓✓ | 342ms | 352ms | 7,583ms | 12,502ms |
+| **4KB** | 339ms ✓✓ | 440ms | 434ms | 15,910ms | 24,447ms |
 
 ### Multi-Attribute Performance (10K documents)
 
