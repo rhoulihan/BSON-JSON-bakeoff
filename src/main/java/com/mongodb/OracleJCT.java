@@ -50,6 +50,22 @@ public class OracleJCT implements DatabaseOperations {
 
             // Disable auto-commit for better batch performance
             connection.setAutoCommit(false);
+
+            // Apply session optimizations for better performance
+            Statement optStmt = connection.createStatement();
+
+            // Session parse optimization - cache parsed SQL statements
+            optStmt.execute("ALTER SESSION SET SESSION_CACHED_CURSORS = 200");
+
+            // Optional async commit mode (only if enabled via -acb flag)
+            if (Main.useAsyncCommit) {
+                optStmt.execute("ALTER SESSION SET COMMIT_LOGGING = BATCH");
+                optStmt.execute("ALTER SESSION SET COMMIT_WAIT = NOWAIT");
+                System.out.println("⚠ ASYNC COMMIT ENABLED: COMMIT_LOGGING=BATCH, COMMIT_WAIT=NOWAIT");
+                System.out.println("⚠ WARNING: This mode is NOT ACID compliant - data may be lost on crash!");
+            }
+
+            optStmt.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -201,6 +217,17 @@ public class OracleJCT implements DatabaseOperations {
                 insert.executeBatch();
                 connection.commit();
             }
+
+            // Gather statistics for indexed collections to improve query performance
+            if (Main.runIndexTest && collectionName.equals("indexed")) {
+                Statement statsStmt = connection.createStatement();
+                statsStmt.execute("BEGIN DBMS_STATS.GATHER_TABLE_STATS(USER, '" +
+                                  collectionName.toUpperCase() +
+                                  "', estimate_percent => DBMS_STATS.AUTO_SAMPLE_SIZE); END;");
+                statsStmt.close();
+                System.out.println("✓ Gathered table statistics for indexed collection");
+            }
+
             insert.close();
             return System.currentTimeMillis() - start;
         } catch (SQLException e) {

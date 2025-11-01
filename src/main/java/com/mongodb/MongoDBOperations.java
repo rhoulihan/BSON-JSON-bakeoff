@@ -7,6 +7,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.Projections;
+import com.mongodb.WriteConcern;
 
 import org.bson.BsonBinaryWriter;
 import org.bson.Document;
@@ -44,12 +45,17 @@ public class MongoDBOperations implements DatabaseOperations {
             database.getCollection(collectionName).drop();
             database.createCollection(collectionName);
         }
-        database.getCollection("indexed").createIndex(Indexes.ascending("targets"));
+
+        // Only create index on 'targets' array when runIndexTest is true
+        if (Main.runIndexTest && collectionNames.contains("indexed")) {
+            database.getCollection("indexed").createIndex(Indexes.ascending("targets"));
+            System.out.println("Created index on indexed.targets");
+        }
     }
 
     @Override
     public long insertDocuments(String collectionName, List<JSONObject> documents, int dataSize, boolean splitPayload) {
-        MongoCollection<Document> collection = database.getCollection(collectionName);
+        MongoCollection<Document> collection = database.getCollection(collectionName).withWriteConcern(WriteConcern.JOURNALED);
         MongoCollection<Document> links = null;
         List<Document> insertDocs = new ArrayList<>();
         List<Document> linkDocs = null;
@@ -57,7 +63,7 @@ public class MongoDBOperations implements DatabaseOperations {
         Document link = null;
 
         if (Main.runLookupTest) {
-            links = database.getCollection("links");
+            links = database.getCollection("links").withWriteConcern(WriteConcern.JOURNALED);
             linkDocs = new ArrayList<>();
             link = new Document();
         }

@@ -32,6 +32,7 @@ public class Main {
     public static Integer numRuns = 1;
     public static boolean useMultivalueIndex = false;
     public static boolean useRealisticData = false;
+    public static boolean useAsyncCommit = false;
 
     public static void main(String[] args) {
         String dbType = "mongodb"; // default to MongoDB
@@ -90,6 +91,11 @@ public class Main {
                 case "-mv":
                     System.out.println("Using multivalue index instead of search index (Oracle only)...");
                     useMultivalueIndex = true;
+                    break;
+
+                case "-acb":
+                    System.out.println("Using async commit mode (Oracle only - NOT ACID compliant)...");
+                    useAsyncCommit = true;
                     break;
 
                 case "-rd":
@@ -578,9 +584,9 @@ public class Main {
         List<String> collectionNames = new ArrayList<>();
 
         if (runIndexTest)
+            collectionNames.add("indexed");
+        else
             collectionNames.add("noindex");
-
-        collectionNames.add("indexed");
 
         // Check cache first
         String cacheFile = getCacheFilename(dataSize, numDocs, false); // Base documents cache (without realistic data)
