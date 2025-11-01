@@ -290,18 +290,33 @@ def generate_summary_table(single_results, multi_results):
 
 def main():
     """Main execution."""
+    global NUM_DOCS, NUM_RUNS, BATCH_SIZE, QUERY_LINKS, DATABASES
+
     parser = argparse.ArgumentParser(description='Run benchmark tests replicating LinkedIn article')
     parser.add_argument('--queries', '-q', action='store_true',
                         help=f'Include query tests with {QUERY_LINKS} links per document')
     parser.add_argument('--mongodb', action='store_true', help='Run MongoDB tests')
     parser.add_argument('--oracle', action='store_true', help='Run Oracle JCT tests')
     parser.add_argument('--postgresql', action='store_true', help='Run PostgreSQL tests (JSON and JSONB)')
+    parser.add_argument('--batch-size', '-b', type=int, default=BATCH_SIZE,
+                        help=f'Batch size for insertions (default: {BATCH_SIZE})')
+    parser.add_argument('--num-docs', '-n', type=int, default=NUM_DOCS,
+                        help=f'Number of documents per test (default: {NUM_DOCS})')
+    parser.add_argument('--num-runs', '-r', type=int, default=NUM_RUNS,
+                        help=f'Number of runs per test (default: {NUM_RUNS})')
+    parser.add_argument('--query-links', type=int, default=QUERY_LINKS,
+                        help=f'Number of array elements for query tests (default: {QUERY_LINKS})')
     args = parser.parse_args()
 
     enable_queries = args.queries
 
+    # Use command-line values
+    NUM_DOCS = args.num_docs
+    NUM_RUNS = args.num_runs
+    BATCH_SIZE = args.batch_size
+    QUERY_LINKS = args.query_links
+
     # Filter databases based on arguments (if no args, run all)
-    global DATABASES
     if args.mongodb or args.oracle or args.postgresql:
         enabled_databases = []
         for db in DATABASES:

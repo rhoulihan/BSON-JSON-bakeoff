@@ -44,3 +44,4 @@ __pycache__/
 
 # Test outputs
 test_output.html
+document_cache/

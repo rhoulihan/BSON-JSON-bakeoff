@@ -6,11 +6,13 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.io.IOException;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.json.JSONObject;
 import org.json.JSONArray;
+import java.io.File;
 
 public class Main {
     private static DatabaseOperations dbOperations;
@@ -353,13 +355,107 @@ public class Main {
     }
 
     /**
+     * Generate cache filename based on test parameters
+     */
+    private static String getCacheFilename(int targetSize, int numDocs, boolean useRealisticData) {
+        String cacheDir = "document_cache";
+        new File(cacheDir).mkdirs(); // Create cache directory if it doesn't exist
+
+        String prefix = useRealisticData ? "realistic" : "standard";
+        int links = (runQueryTest && !useInCondition) ? numLinks : 0;
+        return String.format("%s/%s_s%d_n%d_a%d_l%d.json",
+            cacheDir, prefix, targetSize, numDocs, numAttrs, links);
+    }
+
+    /**
+     * Save documents to cache file
+     */
+    private static void saveDocumentsToCache(String filename, List<JSONObject> documents) {
+        try (FileWriter file = new FileWriter(filename)) {
+            JSONObject cache = new JSONObject();
+            cache.put("numDocs", documents.size());
+            cache.put("useRealisticData", useRealisticData);
+            cache.put("numAttrs", numAttrs);
+            cache.put("numLinks", numLinks);
+
+            JSONArray docsArray = new JSONArray();
+            for (JSONObject doc : documents) {
+                docsArray.put(doc);
+            }
+            cache.put("documents", docsArray);
+
+            file.write(cache.toString(2)); // Pretty print with indent
+            System.out.println("  Saved " + documents.size() + " documents to cache: " + filename);
+        } catch (IOException e) {
+            System.out.println("  Warning: Failed to save cache file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Load documents from cache file
+     */
+    private static List<JSONObject> loadDocumentsFromCache(String filename) {
+        try {
+            String content = new String(Files.readAllBytes(Paths.get(filename)));
+            JSONObject cache = new JSONObject(content);
+            JSONArray docsArray = cache.getJSONArray("documents");
+
+            List<JSONObject> documents = new ArrayList<>();
+            for (int i = 0; i < docsArray.length(); i++) {
+                documents.add(docsArray.getJSONObject(i));
+            }
+
+            System.out.println("  Loaded " + documents.size() + " documents from cache: " + filename);
+            return documents;
+        } catch (Exception e) {
+            System.out.println("  Cache miss or invalid cache file: " + filename);
+            return null;
+        }
+    }
+
+    /**
+     * Calculate average document size in bytes (JSON string representation)
+     */
+    private static int getAverageDocumentSize(List<JSONObject> documents) {
+        if (documents.isEmpty()) return 0;
+
+        long totalSize = 0;
+        for (JSONObject doc : documents) {
+            totalSize += doc.toString().length();
+        }
+        return (int)(totalSize / documents.size());
+    }
+
+    /**
+     * Extract object IDs from documents
+     */
+    private static List<String> extractObjectIds(List<JSONObject> documents) {
+        List<String> ids = new ArrayList<>();
+        for (JSONObject doc : documents) {
+            if (doc.has("_id")) {
+                ids.add(doc.getString("_id"));
+            }
+        }
+        return ids;
+    }
+
+    /**
      * Add realistic data to documents for multi-attribute tests
      * This replaces the flat binary payload approach with nested realistic structures
+     *
+     * IMPORTANT: Generates ONE schema for all documents, then randomizes only VALUES
+     * This matches real-world usage where documents share a common schema
      */
     private static List<JSONObject> addRealisticDataToDocuments(List<JSONObject> documents, int targetSize) {
         List<JSONObject> result = new ArrayList<>();
-        java.util.Random rand = new java.util.Random(42); // Fixed seed for reproducibility
+        java.util.Random schemaRand = new java.util.Random(42); // Fixed seed for schema generation
 
+        // Generate ONE schema template for all documents in this test
+        JSONObject schemaTemplate = generateRealisticData(targetSize, schemaRand, 0, 5);
+        System.out.println("  Generated common schema with " + countFields(schemaTemplate) + " total fields across all nesting levels");
+
+        // Now populate each document with randomized values using the same schema
+        java.util.Random valueRand = new java.util.Random(43); // Different seed for value randomization
         for (JSONObject doc : documents) {
             JSONObject newDoc = new JSONObject();
             // Copy existing fields (_id, targets)
@@ -368,11 +464,111 @@ public class Main {
                 newDoc.put("targets", doc.get("targets"));
             }
 
-            // Add realistic nested data structure
-            JSONObject realisticData = generateRealisticData(targetSize, rand, 0, 5);
-            newDoc.put("data", realisticData);
+            // Populate schema template with randomized values for this document
+            JSONObject populatedData = populateSchemaWithRandomValues(schemaTemplate, valueRand);
+            newDoc.put("data", populatedData);
 
             result.add(newDoc);
+        }
+
+        return result;
+    }
+
+    /**
+     * Count total number of fields across all nesting levels
+     */
+    private static int countFields(JSONObject obj) {
+        int count = 0;
+        for (String key : obj.keySet()) {
+            count++;
+            Object value = obj.get(key);
+            if (value instanceof JSONObject) {
+                count += countFields((JSONObject) value);
+            } else if (value instanceof JSONArray) {
+                JSONArray arr = (JSONArray) value;
+                for (int i = 0; i < arr.length(); i++) {
+                    if (arr.get(i) instanceof JSONObject) {
+                        count += countFields((JSONObject) arr.get(i));
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Populate a schema template with random values
+     * Preserves structure (field names, types, nesting) but randomizes all values
+     */
+    private static JSONObject populateSchemaWithRandomValues(JSONObject template, java.util.Random rand) {
+        JSONObject result = new JSONObject();
+
+        for (String key : template.keySet()) {
+            Object value = template.get(key);
+
+            if (value instanceof JSONObject) {
+                // Nested object - recursively populate
+                result.put(key, populateSchemaWithRandomValues((JSONObject) value, rand));
+
+            } else if (value instanceof JSONArray) {
+                // Array - populate each element
+                JSONArray templateArray = (JSONArray) value;
+                JSONArray newArray = new JSONArray();
+                for (int i = 0; i < templateArray.length(); i++) {
+                    Object arrayItem = templateArray.get(i);
+                    if (arrayItem instanceof JSONObject) {
+                        newArray.put(populateSchemaWithRandomValues((JSONObject) arrayItem, rand));
+                    } else if (arrayItem instanceof Integer) {
+                        newArray.put(rand.nextInt(10000));
+                    } else if (arrayItem instanceof Double) {
+                        newArray.put(rand.nextDouble() * 1000);
+                    } else if (arrayItem instanceof String) {
+                        // Check if it's base64 encoded binary or regular string
+                        String str = (String) arrayItem;
+                        try {
+                            java.util.Base64.getDecoder().decode(str);
+                            // It's base64 - generate new random binary
+                            byte[] bytes = new byte[str.length() * 3 / 4];
+                            rand.nextBytes(bytes);
+                            newArray.put(java.util.Base64.getEncoder().encodeToString(bytes));
+                        } catch (Exception e) {
+                            // Regular string - generate new random string of same length
+                            newArray.put(generateRandomString(rand, str.length()));
+                        }
+                    } else if (arrayItem instanceof Boolean) {
+                        newArray.put(rand.nextBoolean());
+                    } else {
+                        newArray.put(arrayItem); // Fallback
+                    }
+                }
+                result.put(key, newArray);
+
+            } else if (value instanceof Integer) {
+                result.put(key, rand.nextInt(1000000));
+
+            } else if (value instanceof Double) {
+                result.put(key, rand.nextDouble() * 10000);
+
+            } else if (value instanceof String) {
+                String str = (String) value;
+                // Check if it's base64 encoded binary or regular string
+                try {
+                    java.util.Base64.getDecoder().decode(str);
+                    // It's base64 - generate new random binary of same size
+                    byte[] bytes = new byte[str.length() * 3 / 4];
+                    rand.nextBytes(bytes);
+                    result.put(key, java.util.Base64.getEncoder().encodeToString(bytes));
+                } catch (Exception e) {
+                    // Regular string - generate new random string of same length
+                    result.put(key, generateRandomString(rand, str.length()));
+                }
+
+            } else if (value instanceof Boolean) {
+                result.put(key, rand.nextBoolean());
+
+            } else {
+                result.put(key, value); // Fallback for unknown types
+            }
         }
 
         return result;
@@ -386,8 +582,20 @@ public class Main {
 
         collectionNames.add("indexed");
 
-        List<String> objectIds = generateObjectIds(numDocs);
-        List<JSONObject> documents = generateDocuments(objectIds);
+        // Check cache first
+        String cacheFile = getCacheFilename(dataSize, numDocs, false); // Base documents cache (without realistic data)
+        List<JSONObject> documents = loadDocumentsFromCache(cacheFile);
+
+        if (documents == null) {
+            // Cache miss - generate new documents
+            System.out.println("  Generating " + numDocs + " documents with IDs and targets...");
+            List<String> objectIds = generateObjectIds(numDocs);
+            documents = generateDocuments(objectIds);
+            saveDocumentsToCache(cacheFile, documents);
+        }
+
+        // Extract object IDs from documents for query tests
+        List<String> objectIds = extractObjectIds(documents);
 
         // Track best times across all runs
         long bestSingleAttrTime = Long.MAX_VALUE;
@@ -407,6 +615,12 @@ public class Main {
             dbOperations.dropAndCreateCollections(collectionNames);
 
             if (runSingleAttrTest) {
+                // Report document size on first run (before adding payload)
+                if (run == 1) {
+                    int baseSize = getAverageDocumentSize(documents);
+                    System.out.println(String.format("  Base document size (no payload): %dB", baseSize));
+                }
+
                 for (String collectionName : collectionNames) {
                     long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, false);
                     if (numRuns == 1) {
@@ -423,11 +637,28 @@ public class Main {
             // Multi-attribute test - use realistic data if flag is enabled
             List<JSONObject> docsToInsert = documents;
             if (useRealisticData) {
-                docsToInsert = addRealisticDataToDocuments(documents, dataSize);
-                if (run == 1 && numRuns > 1) {
-                    System.out.println("  Using realistic nested data structures (up to 5 levels deep)");
-                } else if (numRuns == 1) {
-                    System.out.println("Using realistic nested data structures (up to 5 levels deep)");
+                // Check cache for realistic data documents
+                String realisticCacheFile = getCacheFilename(dataSize, numDocs, true);
+                docsToInsert = loadDocumentsFromCache(realisticCacheFile);
+
+                if (docsToInsert == null) {
+                    // Cache miss - generate realistic data documents
+                    docsToInsert = addRealisticDataToDocuments(documents, dataSize);
+                    saveDocumentsToCache(realisticCacheFile, docsToInsert);
+                }
+
+                // Report document size on first run
+                if (run == 1) {
+                    int avgSize = getAverageDocumentSize(docsToInsert);
+                    String sizeInfo = String.format("  Average document size: %dB (target: %dB, %.1f%% of target)",
+                        avgSize, dataSize, (avgSize * 100.0 / dataSize));
+                    System.out.println(sizeInfo);
+
+                    if (numRuns > 1) {
+                        System.out.println("  Using realistic nested data structures (up to 5 levels deep)");
+                    } else {
+                        System.out.println("Using realistic nested data structures (up to 5 levels deep)");
+                    }
                 }
             }
 

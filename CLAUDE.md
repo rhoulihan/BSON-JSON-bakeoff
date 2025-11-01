@@ -62,7 +62,7 @@ Sequentially tests MongoDB, PostgreSQL, YugabyteDB, and CockroachDB using Docker
 The codebase uses the **Strategy pattern** with `DatabaseOperations` interface defining common operations, allowing easy addition of new database backends:
 
 - **Interface**: `DatabaseOperations` (6 methods)
-- **Implementations**: `MongoDBOperations`, `PostgreSQLOperations`, `Oracle23AIOperations`, `OracleJCT`, `OracleJCT2`
+- **Implementations**: `MongoDBOperations`, `PostgreSQLOperations`, `Oracle23AIOperations`, `OracleJCT`
 - **Main coordinator**: `Main.java` handles argument parsing, document generation, and orchestration
 
 ### Key Components
@@ -88,7 +88,7 @@ void close();
 - **MongoDBOperations**: Uses native BSON, multikey indexes, $in queries, $lookup aggregations
 - **PostgreSQLOperations**: JSON/JSONB columns, GIN indexes, array containment operators
 - **Oracle23AIOperations**: JSON Duality Views with bidirectional relational/document mapping (⚠️ has array insertion bug in Oracle 23AI Free, use `-d` flag for direct table insertion workaround)
-- **OracleJCT/OracleJCT2**: Native JSON Collection Tables with OSON binary format, JSON path queries, search indexes
+- **OracleJCT**: Native JSON Collection Tables with OSON binary format, JSON path queries, search indexes, multivalue indexes
 
 ### Configuration Management
 
@@ -147,7 +147,6 @@ Documents are generated in `Main.java` with:
 - `-p`: Use PostgreSQL instead of MongoDB
 - `-o`: Use Oracle JSON Duality Views
 - `-oj`: Use Oracle JSON Collection Tables (simpler than Duality Views)
-- `-oj2`: Use OracleJCT2 implementation (alternative with different optimizations)
 - `-d`: Direct table insertion for Oracle (bypasses Duality View bug)
 - `-j`: Use JSONB instead of JSON (PostgreSQL only)
 - `-i`: Run indexed vs non-indexed comparison, OR enable $in condition for queries
