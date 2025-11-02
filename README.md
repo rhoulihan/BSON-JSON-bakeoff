@@ -48,13 +48,19 @@ BSON-JSON-bakeoff/
 ├── src/main/java/com/mongodb/
 │   ├── Main.java                    # Entry point and argument parsing
 │   ├── DatabaseOperations.java     # Interface for database operations
-│   ├── MongoDBOperations.java      # MongoDB implementation
+│   ├── MongoDBOperations.java      # MongoDB implementation (with WriteConcern.JOURNALED)
 │   ├── PostgreSQLOperations.java   # PostgreSQL implementation
 │   ├── Oracle23AIOperations.java   # Oracle 23AI Duality Views implementation
-│   └── OracleJCT.java               # Oracle JSON Collection Tables implementation
+│   ├── OracleJCT.java               # Oracle JSON Collection Tables implementation
+│   └── OracleJCT2.java              # Alternative Oracle JCT implementation
 ├── pom.xml                          # Maven project configuration
 ├── test.sh                          # Automated testing script with Docker
-└── README.md                        # This file
+├── run_article_benchmarks.py       # Python benchmark orchestration with per-test restart
+├── generate_html_report.py         # HTML report generation from benchmark results
+├── CLAUDE.md                        # AI assistant guidance and project documentation
+├── SAMPLE_DOCUMENTS.md             # Sample realistic document structures
+├── README.md                        # This file (you are here)
+└── document_cache/                  # Cached generated documents (git-ignored)
 ```
 
 ## Installation
@@ -130,6 +136,8 @@ java -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS] [numItems]
 | `-s [sizes]` | Comma-delimited array of payload sizes in bytes | 100,1000 |
 | `-n [numAttrs]` | Number of attributes to split payload across | 10 |
 | `-b [batchSize]` | Number of documents to batch in each insert | 100 |
+| `-rd` | Use realistic nested data structures (vs flat binary payloads) | Flat binary |
+| `-mv` | Use multivalue indexes for Oracle JCT (requires `-i`, 7x faster than search indexes) | Search index |
 | `[numItems]` | Total number of documents to generate | 10000 |
 
 ### Usage Examples
@@ -244,6 +252,21 @@ Full-featured test with:
 - 100 attributes per document
 - Batch size of 200
 - Query test with 20 linked documents
+
+#### Example 16: Realistic Nested Data Structures
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -oj -i -mv -rd -q 10 -s 1000 -n 50 -r 3 -b 1000 10000
+```
+Tests Oracle JCT with realistic data structures:
+- 10,000 documents with realistic nested data
+- 1000B payload split across 50 attributes
+- Nested subdocuments up to 5 levels deep
+- Mixed data types: strings, integers, decimals, binary, arrays, booleans
+- Multivalue indexes for optimal query performance (7x faster)
+- 3 runs to ensure consistent results
+- Query tests with 10 linked documents
+
+**Note on realistic data**: The `-rd` flag generates documents with nested structures resembling real-world data, rather than flat binary blobs. This provides more accurate performance metrics for production workloads. See [SAMPLE_DOCUMENTS.md](SAMPLE_DOCUMENTS.md) for examples of the generated structures.
 
 ### Configuration File
 
@@ -376,33 +399,89 @@ Total time taken to query 10000 ID's with 10 element link arrays using multikey 
 Total items found: 99939
 ```
 
-## Performance Analysis
+## Python Benchmarking Script
 
-For comprehensive performance analysis and benchmark results comparing MongoDB BSON, Oracle 26ai JSON Collection Tables, and PostgreSQL 17.6 JSON/JSONB, see:
+For automated, comprehensive benchmarking with per-test database isolation, use the Python orchestration script:
 
-**📊 [Three-Platform Performance Comparison](THREE_PLATFORM_COMPARISON.md)**
+```bash
+python3 run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
+```
 
-This detailed analysis includes:
-- Single and multi-attribute performance results
-- Payload size impact analysis (10B to 4KB)
-- PostgreSQL TOAST threshold documentation
-- MongoDB vs Oracle head-to-head comparison
-- When to use each platform
-- Complete benchmark methodology
+### Key Features
 
-**Key Findings Summary:**
-- **MongoDB BSON**: Best for large single-attribute documents (1-4KB), excellent consistency (1.18x degradation)
-- **Oracle JCT**: Surprisingly robust, wins for complex multi-attribute documents (200+ attributes) and small documents (10-200B)
-- **PostgreSQL**: TOAST mechanism causes 83-114x degradation above 2KB - unsuitable for document storage
+- **Per-Test Database Restart**: Eliminates cache warmup effects by restarting the database before each test
+- **Automated Test Orchestration**: Runs multiple test configurations sequentially
+- **JSON Results Output**: Saves structured results for analysis (`full_comparison_results.json`)
+- **Progress Logging**: Real-time output with detailed test progress
+- **Configurable Test Suites**: Support for single/multi-attribute tests with various payload sizes
 
-**Winner by workload type:**
-- Large single-attribute docs (4KB): MongoDB (353ms vs Oracle 471ms)
-- Complex multi-attribute docs (200 attrs): Oracle (744ms vs MongoDB 829ms - 11% faster!)
-- Small documents (10-200B): Oracle consistently wins
+### Script Options
 
-See also:
-- [Executive Summary](EXECUTIVE_SUMMARY.md) - High-level findings and recommendations
-- [Quick Reference](QUICK_REFERENCE.txt) - Results tables and quick decision guide
+```bash
+python3 run_article_benchmarks.py [OPTIONS]
+
+Options:
+  --mongodb          Include MongoDB tests
+  --oracle           Include Oracle JCT tests
+  --postgresql       Include PostgreSQL tests
+  --queries          Run query tests with indexes (vs insert-only)
+  --full-comparison  Run both indexed and non-indexed tests
+  --batch-size N     Set batch size for inserts (default: 1000)
+  --no-index         Run insert-only tests without indexes
+```
+
+### Example Workflows
+
+```bash
+# Full comparison: MongoDB vs Oracle with and without indexes
+python3 run_article_benchmarks.py --mongodb --oracle --full-comparison --batch-size 1000
+
+# Query-focused test: Compare query performance
+python3 run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
+
+# Insert-only test: Pure insertion performance
+python3 run_article_benchmarks.py --mongodb --oracle --no-index --batch-size 1000
+```
+
+The script automatically:
+1. Stops all databases before starting
+2. Starts the appropriate database for each test
+3. Runs 3 iterations and keeps the best time
+4. Stops the database after each test completes
+5. Saves results to JSON for further analysis
+
+## Performance Analysis and Benchmarking Methodology
+
+This tool has been used to conduct comprehensive performance comparisons between MongoDB BSON and Oracle 23AI JSON Collection Tables. Recent updates include:
+
+### Recent Bug Fixes and Improvements
+
+1. **Collection Selection Fix** (Critical): Fixed a bug in `Main.java` where both indexed and non-indexed collections were tested when the `-i` flag was present, causing the loop to keep the fastest time from warmed caches. This was causing MongoDB to appear faster with indexes (impossible). Now correctly uses mutually exclusive selection.
+
+2. **Per-Test Database Isolation**: Added `restart_per_test` feature in `run_article_benchmarks.py` to restart databases before each individual test, eliminating cache warmup effects and ensuring fair comparisons.
+
+3. **WriteConcern.JOURNALED**: Added to MongoDB operations to force journal sync before acknowledging writes, providing more consistent timing measurements.
+
+4. **Multivalue Index Optimization**: Oracle JCT now supports multivalue indexes (`-mv` flag) which are 7x faster than search indexes for array containment queries.
+
+### Test Data
+
+- **Standard Mode**: Flat binary payloads for basic performance testing
+- **Realistic Mode** (`-rd` flag): Nested document structures with mixed data types
+  - Subdocuments up to 5 levels deep
+  - Mixed types: strings, integers, decimals, binary data, arrays, booleans
+  - See [SAMPLE_DOCUMENTS.md](SAMPLE_DOCUMENTS.md) for examples
+
+### Benchmark Methodology
+
+- **Deterministic Generation**: Random seed of 42 ensures reproducible results
+- **Multiple Runs**: 3 runs per test, best time reported
+- **Batch Operations**: Configurable batch sizes (default: 1000)
+- **Per-Test Isolation**: Database restart between tests eliminates cache effects
+- **Identical Documents**: All databases test with the same generated documents
+- **Document Caching**: Generated documents cached in `document_cache/` for consistency
+
+For detailed guidance on running benchmarks and interpreting results, see [CLAUDE.md](CLAUDE.md).
 
 ## Oracle 23AI JSON Duality Views
 
@@ -568,20 +647,44 @@ JSON Collection Tables provide:
 The Oracle JCT implementation (`OracleJCT.java`) uses:
 1. **JSON Collection Tables**: Created with `CREATE JSON COLLECTION TABLE` statement
 2. **Native OSON Format**: Binary JSON format for efficient storage and querying
-3. **Search Indexes**: Oracle JSON search indexes for array queries
+3. **Flexible Indexing**: Supports both search indexes and multivalue indexes
 4. **JSON Path Queries**: Uses `JSON_EXISTS` and `JSON_VALUE` for document queries
 
-Example structure:
+#### Index Types
+
+Oracle JCT supports two types of indexes for array queries:
+
+**Search Indexes** (default):
 ```sql
--- Create JSON collection table
-CREATE JSON COLLECTION TABLE indexed;
-
--- Create search index for JSON queries
 CREATE SEARCH INDEX idx_targets ON indexed (data) FOR JSON;
+```
+- General-purpose full-text index for JSON documents
+- Works with complex JSON path expressions
+- Moderate performance for array containment queries
 
--- Query documents using JSON path expressions
+**Multivalue Indexes** (`-mv` flag, 7x faster):
+```sql
+CREATE MULTIVALUE INDEX idx_targets ON indexed (data.targets[*].string());
+```
+- Specialized index for array elements with explicit `[*].string()` syntax
+- Significantly faster for array containment queries (4,110 vs 572 queries/sec)
+- Requires specific query syntax: `JSON_EXISTS(data, '$.targets?(@ == $val)' PASSING ? AS "val")`
+- **Recommended for production use** when querying array fields
+
+Example queries:
+```sql
+-- Query with search index
 SELECT data FROM indexed
 WHERE JSON_EXISTS(data, '$?(@.targets[*] == $id)' PASSING '123' AS "id");
+
+-- Query with multivalue index (7x faster)
+SELECT data FROM indexed
+WHERE JSON_EXISTS(data, '$.targets?(@ == $val)' PASSING '123' AS "val");
+```
+
+To use multivalue indexes in benchmarks, add the `-mv` flag:
+```bash
+java -jar target/insertTest-1.0-jar-with-dependencies.jar -oj -i -mv -q 10 10000
 ```
 
 ### When to Use JSON Collection Tables vs Duality Views
