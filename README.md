@@ -291,7 +291,10 @@ Create a JSON file (e.g., `config.json`) with the following structure:
   "useInCondition": false,
   "useDirectTableInsert": false,
   "runSingleAttrTest": true,
-  "jsonType": "json"
+  "jsonType": "json",
+  "useMultivalueIndex": false,
+  "useAsyncCommit": false,
+  "useRealisticData": false
 }
 ```
 
@@ -313,6 +316,9 @@ Create a JSON file (e.g., `config.json`) with the following structure:
 | `useDirectTableInsert` | boolean | Use direct table insertion (Oracle only) | false |
 | `runSingleAttrTest` | boolean | Test single attribute payloads | true |
 | `jsonType` | string | "json" or "jsonb" (PostgreSQL only) | "json" |
+| `useMultivalueIndex` | boolean | Use multivalue indexes instead of search indexes (Oracle JCT only, 7x faster) | false |
+| `useAsyncCommit` | boolean | Enable async commit mode (Oracle only, not ACID compliant) | false |
+| `useRealisticData` | boolean | Use realistic nested data structures for multi-attribute tests | false |
 
 #### Using Configuration Files
 
