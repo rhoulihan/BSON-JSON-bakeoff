@@ -12,5 +12,8 @@
   "useInCondition": false,
   "useDirectTableInsert": false,
   "runSingleAttrTest": true,
-  "jsonType": "json"
+  "jsonType": "json",
+  "useMultivalueIndex": false,
+  "useAsyncCommit": false,
+  "useRealisticData": false
 }

@@ -803,6 +803,19 @@ public class Main {
                 jsonType = config.getString("jsonType");
             }
 
+            // Oracle-specific
+            if (config.has("useMultivalueIndex")) {
+                useMultivalueIndex = config.getBoolean("useMultivalueIndex");
+            }
+            if (config.has("useAsyncCommit")) {
+                useAsyncCommit = config.getBoolean("useAsyncCommit");
+            }
+
+            // Data generation options
+            if (config.has("useRealisticData")) {
+                useRealisticData = config.getBoolean("useRealisticData");
+            }
+
             System.out.println("Configuration loaded successfully");
             return dbType;
 
