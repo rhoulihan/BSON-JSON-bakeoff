@@ -1,10 +1,14 @@
 # Oracle Database Optimizations
 
-This document describes all optimizations applied to Oracle Database 23ai for the BSON vs JSON benchmark tests.
+This document describes all optimizations **available** for Oracle Database 23ai for the BSON vs JSON benchmark tests.
+
+**IMPORTANT**: See [ORACLE_OPTIMIZATION_STATUS.md](ORACLE_OPTIMIZATION_STATUS.md) for the current status of which optimizations have been applied to the local Oracle instance. The benchmarks in this repository were run with **DEFAULT** Oracle configuration, not the optimized configuration described below.
 
 ## Overview
 
-The benchmarks test Oracle JSON Collection Tables (JCT) with OSON binary format against MongoDB with BSON. To ensure fair comparison and optimal performance, several database-level and application-level optimizations have been applied.
+The benchmarks test Oracle JSON Collection Tables (JCT) with OSON binary format against MongoDB with BSON. This document describes available database-level and application-level optimizations that can significantly improve Oracle's performance for JSON workloads.
+
+**Note**: Application-level optimizations (OSON format, batching, multivalue indexes) are implemented in the Java code and active during benchmarks. Database-level optimizations from the tuning scripts may not be applied - check ORACLE_OPTIMIZATION_STATUS.md for current status.
 
 ## Database-Level Optimizations
 
