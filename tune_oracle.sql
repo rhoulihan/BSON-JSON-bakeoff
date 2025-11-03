@@ -53,6 +53,13 @@ ALTER SYSTEM SET shared_pool_size=1G SCOPE=SPFILE;
 -- Disable query result cache for benchmark accuracy
 ALTER SYSTEM SET result_cache_mode=MANUAL SCOPE=BOTH;
 
+-- ============================================================
+-- 8. SEGMENT MANAGEMENT (Better for growing tables)
+-- ============================================================
+-- Disable deferred segment creation for immediate space allocation
+-- Benefits: Allocates space upfront, reduces extent allocation overhead during inserts
+ALTER SYSTEM SET deferred_segment_creation=FALSE SCOPE=BOTH;
+
 -- Show current settings
 SELECT 'Current Memory Settings:' as info FROM dual;
 SELECT name, value FROM v$parameter 

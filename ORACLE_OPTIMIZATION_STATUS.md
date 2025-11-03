@@ -62,6 +62,16 @@ All recommended optimizations are compatible with Free Edition and should be app
 
 **Current Impact**: Long-running operations not automatically parallelized across CPU cores.
 
+### 5. Segment Management
+
+| Parameter | Current Value | Recommended | Status | Impact |
+|-----------|--------------|-------------|--------|--------|
+| **deferred_segment_creation** | TRUE (default) | FALSE | NOT SET | Segments created on-demand |
+
+**Free Edition Compatibility**: ✅ Compatible
+
+**Current Impact**: Segments are created lazily on first row insert. This can cause extent allocation overhead during bulk inserts, particularly when tables grow rapidly. Setting to FALSE allocates segments immediately on CREATE TABLE, reducing fragmentation and improving bulk load performance.
+
 ## Application-Level Optimizations
 
 These are implemented in the Java code and ARE being used:

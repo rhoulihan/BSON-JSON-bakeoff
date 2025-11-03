@@ -39,12 +39,20 @@ ALTER SYSTEM SET parallel_min_time_threshold=10 SCOPE=BOTH;
 -- ============================================================
 ALTER SYSTEM SET result_cache_mode=MANUAL SCOPE=BOTH;
 
+-- ============================================================
+-- 7. SEGMENT MANAGEMENT (Better for growing tables)
+-- ============================================================
+-- Disable deferred segment creation for immediate space allocation
+-- Benefits: Allocates space upfront, reduces extent allocation overhead during inserts
+ALTER SYSTEM SET deferred_segment_creation=FALSE SCOPE=BOTH;
+
 PROMPT ============================================================
 PROMPT Oracle Free Edition Tuning Applied
 PROMPT ============================================================
 PROMPT Memory: SGA=2GB (max for Free), PGA=2GB (max for Free)
 PROMPT Commits: IMMEDIATE/NOWAIT (faster for bulk operations)
 PROMPT Indexes: Optimized (cost_adj=20, caching=90)
-PROMPT 
+PROMPT Segments: Immediate creation (better for bulk loads)
+PROMPT
 PROMPT Restart required: sudo systemctl restart oracle-free-26ai
 PROMPT ============================================================

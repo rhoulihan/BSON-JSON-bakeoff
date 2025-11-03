@@ -114,7 +114,24 @@ ALTER SYSTEM SET parallel_min_time_threshold=10 SCOPE=BOTH;
 - Faster table scans and index builds
 - Better performance on multi-core systems
 
-### 5. Applying Database Tuning
+### 5. Segment Management
+
+```sql
+-- Disable deferred segment creation
+ALTER SYSTEM SET deferred_segment_creation=FALSE SCOPE=BOTH;
+```
+
+**Impact**:
+- Allocates table segments immediately on CREATE TABLE
+- Reduces extent allocation overhead during bulk inserts
+- Provides better performance for tables that grow rapidly
+- Prevents fragmentation by allocating initial extents upfront
+
+**Default Behavior**: Oracle 11g+ uses deferred segment creation, which delays segment allocation until the first row is inserted. This can cause performance overhead during bulk loads as extents are allocated on-demand.
+
+**Optimized Behavior**: With deferred_segment_creation=FALSE, segments are created immediately, and Oracle can better manage extent sizing for growing tables.
+
+### 6. Applying Database Tuning
 
 ```bash
 # For Enterprise/Standard Edition
