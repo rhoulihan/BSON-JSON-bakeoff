@@ -153,9 +153,13 @@ def stop_database(service_name):
     time.sleep(2)
     print("✓ Stopped")
 
-def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None):
+def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=False):
     """Run a single benchmark test, optionally with query tests."""
     cmd = f"java -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
+
+    # Add size measurement flag if specified
+    if measure_sizes:
+        cmd += " -size"
 
     # Add query test flag if specified
     if query_links is not None:
@@ -237,7 +241,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
         print(f"    ERROR: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False):
+def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False):
     """Run a complete test suite (single or multi attribute).
 
     Args:
@@ -245,6 +249,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         test_type: Description of test type
         enable_queries: Whether to run query tests
         restart_per_test: If True, restart database before EACH test for maximum isolation
+        measure_sizes: Whether to enable BSON/OSON object size measurement
     """
     print(f"\n{'='*80}")
     print(f"{test_type.upper()} ATTRIBUTE TESTS" + (" WITH QUERIES" if enable_queries else ""))
@@ -282,7 +287,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     NUM_DOCS,
                     NUM_RUNS,
                     BATCH_SIZE,
-                    query_links=QUERY_LINKS if enable_queries else None
+                    query_links=QUERY_LINKS if enable_queries else None,
+                    measure_sizes=measure_sizes
                 )
 
                 if result['success']:
@@ -331,7 +337,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     NUM_DOCS,
                     NUM_RUNS,
                     BATCH_SIZE,
-                    query_links=QUERY_LINKS if enable_queries else None
+                    query_links=QUERY_LINKS if enable_queries else None,
+                    measure_sizes=measure_sizes
                 )
 
                 if result['success']:
@@ -431,8 +438,8 @@ def run_full_comparison_suite(args):
         db['flags'] = db['flags'].replace(' -i', '').replace('-i ', '').replace(' -mv', '').replace('-mv ', '')
 
     # Run tests without indexes - restart database before each test for maximum isolation
-    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True)
-    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True)
+    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes)
+    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes)
 
     # ========== PART 2: WITH-INDEX TESTS ==========
     print(f"\n{'='*80}")
@@ -467,8 +474,8 @@ def run_full_comparison_suite(args):
     print()
 
     # Run tests with indexes and queries - restart database before each test for maximum isolation
-    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True)
-    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True)
+    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes)
+    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes)
 
     # ========== GENERATE COMPARISON SUMMARY ==========
     print(f"\n{'='*80}")
@@ -546,6 +553,8 @@ def main():
                         help=f'Number of runs per test (default: {NUM_RUNS})')
     parser.add_argument('--query-links', type=int, default=QUERY_LINKS,
                         help=f'Number of array elements for query tests (default: {QUERY_LINKS})')
+    parser.add_argument('--measure-sizes', action='store_true',
+                        help='Enable BSON/OSON object size measurement and comparison')
     args = parser.parse_args()
 
     # Use command-line values
@@ -598,10 +607,10 @@ def main():
     stop_all_databases()
 
     # Run single-attribute tests
-    single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries)
+    single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
 
     # Run multi-attribute tests
-    multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries)
+    multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
 
     # Generate summary
     generate_summary_table(single_results, multi_results)

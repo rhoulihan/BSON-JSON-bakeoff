@@ -186,3 +186,4 @@ Documents are generated in `Main.java` with:
 - Test case for Oracle Duality View bug: `src/test/java/com/mongodb/TestDualityView.java`
 - Automated cross-database testing: `test.sh` script with Docker
 - Report generation: `generate_report.py` for HTML visualization with charts
+- Whenever I say "Run the article benchmark" execute the article benchmark scripts on both the local and the remote system with a 30 minute bash timeout, monitor and report progress on both systems every 60 seconds until complete then analyze the results and generate a detailed summary of the data comparing mongodb to oracle performance on both systems

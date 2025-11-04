@@ -49,3 +49,4 @@ __pycache__/
 # Test outputs
 test_output.html
 document_cache/
+full_comparison_results.json

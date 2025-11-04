@@ -394,6 +394,12 @@ public class Oracle23AIOperations implements DatabaseOperations {
     }
 
     @Override
+    public long getAverageDocumentSize(String collectionName) {
+        // Not implemented for Oracle23AI
+        return -1;
+    }
+
+    @Override
     public void close() {
         try {
             if (stmt != null && !stmt.isClosed()) {

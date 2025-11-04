@@ -158,6 +158,12 @@ public class PostgreSQLOperations implements DatabaseOperations {
     }
 
     @Override
+    public long getAverageDocumentSize(String collectionName) {
+        // Not implemented for PostgreSQL
+        return -1;
+    }
+
+    @Override
     public void close() {
         try {
             if (connection != null && !connection.isClosed()) {

@@ -337,6 +337,23 @@ public class OracleJCT implements DatabaseOperations {
     }
 
     @Override
+    public long getAverageDocumentSize(String collectionName) {
+        try {
+            String sql = "SELECT AVG(LENGTH(data)) as avg_size FROM " + collectionName;
+            try (PreparedStatement pstmt = connection.prepareStatement(sql);
+                 ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("avg_size");
+                }
+                return -1;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting average document size: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    @Override
     public void close() {
         try {
             if (connection != null && !connection.isClosed()) {

@@ -33,6 +33,11 @@ public class Main {
     public static boolean useMultivalueIndex = false;
     public static boolean useRealisticData = false;
     public static boolean useAsyncCommit = false;
+    public static boolean measureObjectSizes = false;
+
+    // Variables to track BSON object sizes
+    private static long totalBsonSize = 0;
+    private static int sizeCount = 0;
 
     public static void main(String[] args) {
         String dbType = "mongodb"; // default to MongoDB
@@ -101,6 +106,11 @@ public class Main {
                 case "-rd":
                     System.out.println("Using realistic nested data structures for multi-attribute tests...");
                     useRealisticData = true;
+                    break;
+
+                case "-size":
+                    System.out.println("Measuring BSON and OSON object sizes...");
+                    measureObjectSizes = true;
                     break;
 
                 case "-r":
@@ -210,9 +220,21 @@ public class Main {
             }
             handleDataInsertions(size);
         }
-        
+
         System.out.println();
         System.out.println("Done.");
+
+        // Print object size report if measurement was enabled
+        // Query for OSON size if using Oracle JCT
+        long avgOsonSize = -1;
+        if (measureObjectSizes && dbType.equals("oraclejct")) {
+            // Try to get average OSON size from the database
+            // Use "indexed" collection if index test was run, otherwise "non_indexed"
+            String collectionName = runIndexTest ? "indexed" : "non_indexed";
+            avgOsonSize = dbOperations.getAverageDocumentSize(collectionName);
+        }
+        printObjectSizeReport(avgOsonSize);
+
         dbOperations.close(); // Ensure resources are properly closed
     }
 
@@ -256,6 +278,9 @@ public class Main {
             List<String> targets = new ArrayList<>(uniqueTargets);
             json.put("targets", targets);
             documents.add(json);
+
+            // Measure object sizes if enabled
+            measureAndAccumulateObjectSizes(json);
         }
 
         return documents;
@@ -816,6 +841,11 @@ public class Main {
                 useRealisticData = config.getBoolean("useRealisticData");
             }
 
+            // Size measurement option
+            if (config.has("measureObjectSizes")) {
+                measureObjectSizes = config.getBoolean("measureObjectSizes");
+            }
+
             System.out.println("Configuration loaded successfully");
             return dbType;
 
@@ -846,6 +876,69 @@ public class Main {
         }
 
         return properties;
+    }
+
+    /**
+     * Measure and accumulate BSON sizes for a JSON document.
+     * This method converts the JSON document to BSON (MongoDB) format
+     * and accumulates the sizes for later averaging.
+     * OSON sizes are measured separately after insertion completes.
+     *
+     * @param jsonDoc The JSON document to measure
+     */
+    public static void measureAndAccumulateObjectSizes(JSONObject jsonDoc) {
+        if (!measureObjectSizes) {
+            return; // Skip if measurement is not enabled
+        }
+
+        try {
+            // Measure BSON size (MongoDB format)
+            org.bson.Document bsonDoc = org.bson.Document.parse(jsonDoc.toString());
+            byte[] bsonBytes = MongoDBOperations.toBsonBytes(bsonDoc);
+            totalBsonSize += bsonBytes.length;
+
+            sizeCount++;
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to measure object size: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Print the accumulated object size statistics.
+     * Displays average BSON size and optionally OSON size with comparison.
+     *
+     * @param avgOsonSize Average OSON size in bytes, or -1 if not available/not applicable
+     */
+    public static void printObjectSizeReport(long avgOsonSize) {
+        if (!measureObjectSizes || sizeCount == 0) {
+            return; // Nothing to report
+        }
+
+        System.out.println("\n================================================================================");
+        System.out.println("OBJECT SIZE MEASUREMENT REPORT");
+        System.out.println("================================================================================");
+        System.out.println("Total documents measured: " + sizeCount);
+
+        long avgBsonSize = totalBsonSize / sizeCount;
+
+        System.out.println(String.format("Average BSON size (MongoDB): %d bytes", avgBsonSize));
+
+        // Only display OSON information if available
+        if (avgOsonSize > 0) {
+            System.out.println(String.format("Average OSON size (Oracle):  %d bytes", avgOsonSize));
+
+            if (avgBsonSize > avgOsonSize) {
+                double diff = ((double)(avgBsonSize - avgOsonSize) / avgOsonSize) * 100;
+                System.out.println(String.format("BSON is %.1f%% larger than OSON", diff));
+            } else if (avgOsonSize > avgBsonSize) {
+                double diff = ((double)(avgOsonSize - avgBsonSize) / avgBsonSize) * 100;
+                System.out.println(String.format("OSON is %.1f%% larger than BSON", diff));
+            } else {
+                System.out.println("BSON and OSON sizes are equal");
+            }
+        }
+
+        System.out.println("================================================================================\n");
     }
 }
 

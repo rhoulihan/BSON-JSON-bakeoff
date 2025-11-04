@@ -205,6 +205,12 @@ public class MongoDBOperations implements DatabaseOperations {
     }
 
     @Override
+    public long getAverageDocumentSize(String collectionName) {
+        // Not implemented for MongoDB - size measurement happens during generation
+        return -1;
+    }
+
+    @Override
     public void close() {
         client.close();
     }
