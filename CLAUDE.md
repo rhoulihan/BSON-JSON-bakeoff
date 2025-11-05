@@ -47,6 +47,22 @@ python3 generate_report.py
 ```
 This runs MongoDB and Oracle JCT benchmarks (with/without search index) and creates `benchmark_report.html`.
 
+### System Resource Monitoring
+
+Enable system resource monitoring during benchmarks:
+```bash
+# Run with resource monitoring (CPU, disk, network every 5 seconds)
+python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor
+
+# Custom monitoring interval
+python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor --monitor-interval 3
+
+# Standalone monitoring (for custom scenarios)
+python3 monitor_resources.py --interval 5 --output metrics.json
+```
+
+See `MONITORING_README.md` for detailed documentation on resource monitoring features, output format, and analysis examples.
+
 ### Docker-based Testing
 
 Test multiple databases automatically:
@@ -186,4 +202,4 @@ Documents are generated in `Main.java` with:
 - Test case for Oracle Duality View bug: `src/test/java/com/mongodb/TestDualityView.java`
 - Automated cross-database testing: `test.sh` script with Docker
 - Report generation: `generate_report.py` for HTML visualization with charts
-- Whenever I say "Run the article benchmark" execute the article benchmark scripts on both the local and the remote system with a 30 minute bash timeout, monitor and report progress on both systems every 60 seconds until complete then analyze the results and generate a detailed summary of the data comparing mongodb to oracle performance on both systems
+- Whenever I say "Run the article benchmark" execute the article benchmark scripts on both the local and the remote system with a 30 minute timeout, monitor and report progress on both systems every 60 seconds until complete then analyze the results and generate a detailed summary of the data comparing mongodb to oracle performance on both systems. IMPORTANT: For the local system use `Bash` with `run_in_background: true` and `timeout: 1800000` (30 minutes in milliseconds) to run `timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle > local_benchmark.log 2>&1`. For the remote system use `Bash` with `timeout: 10000` to run `ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle > remote_benchmark.log 2>&1 &"`

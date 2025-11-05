@@ -18,6 +18,8 @@ import sys
 import time
 import argparse
 import random
+import os
+import signal
 
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
@@ -49,6 +51,56 @@ DATABASES = [
     {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j -i -rd", "service": "postgresql-17", "db_type": "postgresql"},
     {"name": "Oracle JCT", "key": "oracle_jct", "flags": "-oj -i -mv -rd", "service": "oracle-free-26ai", "db_type": "oracle"},
 ]
+
+def start_monitoring(output_file="resource_metrics.json", interval=5):
+    """Start resource monitoring in the background."""
+    monitor_script = os.path.join(os.path.dirname(__file__), "monitor_resources.py")
+
+    if not os.path.exists(monitor_script):
+        print(f"Warning: Monitoring script not found: {monitor_script}")
+        return None
+
+    print(f"Starting resource monitoring (interval: {interval}s)...")
+
+    # Start monitoring process in background
+    proc = subprocess.Popen(
+        [sys.executable, monitor_script, '--interval', str(interval), '--output', output_file],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        preexec_fn=os.setsid  # Create new process group
+    )
+
+    time.sleep(1)  # Give monitor time to start
+
+    if proc.poll() is None:
+        print(f"✓ Resource monitoring started (PID: {proc.pid})")
+        return proc
+    else:
+        print("✗ Failed to start resource monitoring")
+        return None
+
+def stop_monitoring(monitor_proc):
+    """Stop resource monitoring gracefully."""
+    if monitor_proc is None:
+        return
+
+    print("\nStopping resource monitoring...")
+
+    try:
+        # Send SIGTERM to process group to stop monitor gracefully
+        os.killpg(os.getpgid(monitor_proc.pid), signal.SIGTERM)
+
+        # Wait up to 10 seconds for process to finish
+        monitor_proc.wait(timeout=10)
+        print("✓ Resource monitoring stopped")
+
+    except subprocess.TimeoutExpired:
+        print("Warning: Monitor didn't stop gracefully, forcing...")
+        os.killpg(os.getpgid(monitor_proc.pid), signal.SIGKILL)
+        monitor_proc.wait()
+    except Exception as e:
+        print(f"Warning: Error stopping monitor: {e}")
 
 def stop_all_databases():
     """Stop all databases before starting."""
@@ -422,11 +474,20 @@ def run_full_comparison_suite(args):
     print(f"Batch size: {BATCH_SIZE}")
     print(f"Query tests: {QUERY_LINKS} links per document (indexed tests only)")
     print(f"Randomized order: {args.randomize_order}")
+    print(f"Monitoring enabled: {args.monitor}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
     # Stop all databases first
     stop_all_databases()
+
+    # Start resource monitoring if requested
+    monitor_proc = None
+    resource_metrics_file = None
+    if args.monitor:
+        resource_metrics_file = "resource_metrics_full.json"
+        monitor_proc = start_monitoring(resource_metrics_file, args.monitor_interval)
+        print()
 
     # ========== PART 1: NO-INDEX TESTS ==========
     print(f"\n{'='*80}")
@@ -477,6 +538,10 @@ def run_full_comparison_suite(args):
     single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes)
     multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes)
 
+    # Stop resource monitoring if running
+    if monitor_proc is not None:
+        stop_monitoring(monitor_proc)
+
     # ========== GENERATE COMPARISON SUMMARY ==========
     print(f"\n{'='*80}")
     print("COMPARISON SUMMARY")
@@ -492,7 +557,8 @@ def run_full_comparison_suite(args):
             "documents": NUM_DOCS,
             "runs": NUM_RUNS,
             "batch_size": BATCH_SIZE,
-            "query_links": QUERY_LINKS
+            "query_links": QUERY_LINKS,
+            "monitoring_enabled": args.monitor
         },
         "no_index": {
             "single_attribute": single_results_noindex,
@@ -504,11 +570,23 @@ def run_full_comparison_suite(args):
         }
     }
 
+    # Merge resource monitoring data if available
+    if args.monitor and resource_metrics_file and os.path.exists(resource_metrics_file):
+        try:
+            with open(resource_metrics_file, 'r') as f:
+                resource_data = json.load(f)
+            output_data['resource_monitoring'] = resource_data
+            print(f"\n✓ Resource monitoring data merged into results")
+        except Exception as e:
+            print(f"\nWarning: Could not merge resource monitoring data: {e}")
+
     with open("full_comparison_results.json", "w") as f:
         json.dump(output_data, f, indent=2)
 
     print(f"\n{'='*80}")
     print(f"✓ Full comparison results saved to: full_comparison_results.json")
+    if args.monitor and resource_metrics_file:
+        print(f"✓ Resource metrics saved to: {resource_metrics_file}")
     print(f"End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*80}\n")
 
@@ -555,6 +633,10 @@ def main():
                         help=f'Number of array elements for query tests (default: {QUERY_LINKS})')
     parser.add_argument('--measure-sizes', action='store_true',
                         help='Enable BSON/OSON object size measurement and comparison')
+    parser.add_argument('--monitor', action='store_true',
+                        help='Enable system resource monitoring (CPU, disk, network) every 5 seconds')
+    parser.add_argument('--monitor-interval', type=int, default=5,
+                        help='Resource monitoring interval in seconds (default: 5)')
     args = parser.parse_args()
 
     # Use command-line values
@@ -606,14 +688,28 @@ def main():
     # Stop all databases first to ensure clean start
     stop_all_databases()
 
-    # Run single-attribute tests
-    single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
+    # Start resource monitoring if requested
+    monitor_proc = None
+    resource_metrics_file = None
+    if args.monitor:
+        resource_metrics_file = "resource_metrics.json"
+        monitor_proc = start_monitoring(resource_metrics_file, args.monitor_interval)
+        print()
 
-    # Run multi-attribute tests
-    multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
+    try:
+        # Run single-attribute tests
+        single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
 
-    # Generate summary
-    generate_summary_table(single_results, multi_results)
+        # Run multi-attribute tests
+        multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
+
+        # Generate summary
+        generate_summary_table(single_results, multi_results)
+
+    finally:
+        # Stop resource monitoring if running
+        if monitor_proc is not None:
+            stop_monitoring(monitor_proc)
 
     # Save results to JSON
     output_data = {
@@ -623,11 +719,22 @@ def main():
             "runs": NUM_RUNS,
             "batch_size": BATCH_SIZE,
             "query_tests_enabled": enable_queries,
-            "query_links": QUERY_LINKS if enable_queries else None
+            "query_links": QUERY_LINKS if enable_queries else None,
+            "monitoring_enabled": args.monitor
         },
         "single_attribute": single_results,
         "multi_attribute": multi_results
     }
+
+    # Merge resource monitoring data if available
+    if args.monitor and resource_metrics_file and os.path.exists(resource_metrics_file):
+        try:
+            with open(resource_metrics_file, 'r') as f:
+                resource_data = json.load(f)
+            output_data['resource_monitoring'] = resource_data
+            print(f"\n✓ Resource monitoring data merged into results")
+        except Exception as e:
+            print(f"\nWarning: Could not merge resource monitoring data: {e}")
 
     output_file = "article_benchmark_results.json"
     with open(output_file, 'w') as f:
@@ -635,6 +742,8 @@ def main():
 
     print(f"\n{'='*80}")
     print(f"✓ Results saved to: {output_file}")
+    if args.monitor and resource_metrics_file:
+        print(f"✓ Resource metrics saved to: {resource_metrics_file}")
     print(f"End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*80}\n")
 
