@@ -50,3 +50,11 @@ __pycache__/
 test_output.html
 document_cache/
 full_comparison_results.json
+# Benchmark output files
+resource_metrics.json
+*_benchmark.log
+test_activity_log.txt
+article_benchmark_results.json
+benchmark_report.html
+full_comparison_results.json
+resource_metrics_full.json

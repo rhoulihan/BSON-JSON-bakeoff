@@ -293,7 +293,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
         print(f"    ERROR: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False):
+def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None):
     """Run a complete test suite (single or multi attribute).
 
     Args:
@@ -302,12 +302,17 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         enable_queries: Whether to run query tests
         restart_per_test: If True, restart database before EACH test for maximum isolation
         measure_sizes: Whether to enable BSON/OSON object size measurement
+        track_activity: If True, record database start/stop timestamps
+        activity_log: List to append activity events to (format: {db_name, event, timestamp})
     """
     print(f"\n{'='*80}")
     print(f"{test_type.upper()} ATTRIBUTE TESTS" + (" WITH QUERIES" if enable_queries else ""))
     print(f"{'='*80}")
 
     results = {}
+
+    if activity_log is None:
+        activity_log = []
 
     if restart_per_test:
         # MAXIMUM ISOLATION MODE: Restart database before each individual test
@@ -359,6 +364,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
     else:
         # ORIGINAL MODE: Start database once, run all tests, then stop
         current_service = None
+        current_db_name = None
 
         for db in DATABASES:
             print(f"\n--- {db['name']} ---")
@@ -368,6 +374,12 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                 # Stop previous database if any
                 if current_service:
                     stop_database(current_service)
+                    if track_activity and current_db_name:
+                        activity_log.append({
+                            "database": current_db_name,
+                            "event": "stopped",
+                            "timestamp": datetime.now().isoformat()
+                        })
 
                 # Start new database
                 if not start_database(db['service'], db['db_type']):
@@ -376,6 +388,14 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     continue
 
                 current_service = db['service']
+                current_db_name = db['name']
+
+                if track_activity:
+                    activity_log.append({
+                        "database": db['name'],
+                        "event": "started",
+                        "timestamp": datetime.now().isoformat()
+                    })
 
             results[db['key']] = []
 
@@ -406,6 +426,12 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         # Stop the last database
         if current_service:
             stop_database(current_service)
+            if track_activity and current_db_name:
+                activity_log.append({
+                    "database": current_db_name,
+                    "event": "stopped",
+                    "timestamp": datetime.now().isoformat()
+                })
 
     return results
 
@@ -696,12 +722,19 @@ def main():
         monitor_proc = start_monitoring(resource_metrics_file, args.monitor_interval)
         print()
 
+    # Track database activity for visualization
+    activity_log = []
+
     try:
         # Run single-attribute tests
-        single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
+        single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries,
+                                       measure_sizes=args.measure_sizes, track_activity=True,
+                                       activity_log=activity_log)
 
         # Run multi-attribute tests
-        multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries, measure_sizes=args.measure_sizes)
+        multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries,
+                                      measure_sizes=args.measure_sizes, track_activity=True,
+                                      activity_log=activity_log)
 
         # Generate summary
         generate_summary_table(single_results, multi_results)
@@ -723,7 +756,8 @@ def main():
             "monitoring_enabled": args.monitor
         },
         "single_attribute": single_results,
-        "multi_attribute": multi_results
+        "multi_attribute": multi_results,
+        "database_activity": activity_log
     }
 
     # Merge resource monitoring data if available

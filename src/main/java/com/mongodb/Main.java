@@ -229,8 +229,8 @@ public class Main {
         long avgOsonSize = -1;
         if (measureObjectSizes && dbType.equals("oraclejct")) {
             // Try to get average OSON size from the database
-            // Use "indexed" collection if index test was run, otherwise "non_indexed"
-            String collectionName = runIndexTest ? "indexed" : "non_indexed";
+            // Use "indexed" collection if index test was run, otherwise "noindex"
+            String collectionName = runIndexTest ? "indexed" : "noindex";
             avgOsonSize = dbOperations.getAverageDocumentSize(collectionName);
         }
         printObjectSizeReport(avgOsonSize);
@@ -623,6 +623,15 @@ public class Main {
             List<String> objectIds = generateObjectIds(numDocs);
             documents = generateDocuments(objectIds);
             saveDocumentsToCache(cacheFile, documents);
+        } else {
+            // Documents loaded from cache - measure sizes if enabled and NOT using realistic data
+            // (if using realistic data, we'll measure those instead)
+            // Only measure once (sizeCount == 0) to avoid double-counting across multiple runs
+            if (measureObjectSizes && !useRealisticData && sizeCount == 0) {
+                for (JSONObject doc : documents) {
+                    measureAndAccumulateObjectSizes(doc);
+                }
+            }
         }
 
         // Extract object IDs from documents for query tests
@@ -676,6 +685,14 @@ public class Main {
                     // Cache miss - generate realistic data documents
                     docsToInsert = addRealisticDataToDocuments(documents, dataSize);
                     saveDocumentsToCache(realisticCacheFile, docsToInsert);
+                } else {
+                    // Realistic documents loaded from cache - measure sizes if enabled
+                    // Only measure once (sizeCount == 0) to avoid double-counting across multiple runs
+                    if (measureObjectSizes && sizeCount == 0) {
+                        for (JSONObject doc : docsToInsert) {
+                            measureAndAccumulateObjectSizes(doc);
+                        }
+                    }
                 }
 
                 // Report document size on first run
