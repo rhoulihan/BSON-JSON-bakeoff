@@ -65,34 +65,70 @@ See `MONITORING_README.md` for detailed documentation on resource monitoring fea
 
 ### Flame Graph Profiling
 
-Generate flame graphs to visualize CPU usage and identify performance bottlenecks:
+Generate flame graphs to visualize CPU usage and identify performance bottlenecks. The suite supports both **client-side** and **server-side** profiling:
+
+#### Client-Side Profiling (Java Application)
 
 ```bash
 # Setup async-profiler (one-time setup)
 ./setup_async_profiler.sh
 
-# Run benchmarks with flame graph profiling
+# Run benchmarks with client-side flame graph profiling
 python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
 
-# Flame graphs will be saved in flamegraphs/ directory
-# Files are named: {database}_{test_type}_{size}B_{attrs}attrs_{timestamp}.html
+# Flame graphs saved in flamegraphs/ directory
+# Files: {database}_{test_type}_{size}B_{attrs}attrs_{timestamp}.html
 ```
 
-**Flame Graph Features:**
-- Uses async-profiler for low-overhead CPU profiling
+**Client-Side Features:**
+- Profiles Java client application (JDBC, JSON serialization, networking)
+- Uses async-profiler for low-overhead CPU profiling (~1% overhead)
 - Generates interactive HTML flame graphs
-- One flame graph per benchmark test
-- Flame graphs show CPU time distribution across methods
-- Hover over stack frames to see method names and percentages
+- Output: `flamegraphs/mongodb_bson_insert_200B_10attrs_20250106_143022.html`
 
-**Output Examples:**
-- `flamegraphs/mongodb_bson_insert_200B_10attrs_20250106_143022.html`
-- `flamegraphs/oracle_jct_query_1000B_50attrs_20250106_143145.html`
-
-**System Requirements:**
+**Requirements:**
 - async-profiler 3.0 (installed via setup_async_profiler.sh)
 - Linux with perf_event support
-- Root or perf_event_paranoid <= 1
+
+#### Server-Side Profiling (Database Processes)
+
+```bash
+# One-time setup: Install perf and Perl modules
+sudo yum install -y perf perl-open
+
+# Clone FlameGraph tools (if not already done)
+git clone https://github.com/brendangregg/FlameGraph
+
+# Run benchmarks with server-side profiling
+python3 run_article_benchmarks.py --queries --mongodb --oracle --server-profile
+
+# Or profile both client and server simultaneously
+python3 run_article_benchmarks.py --queries --mongodb --oracle \
+  --flame-graph --server-profile
+
+# Standalone server profiling (10 seconds)
+python3 profile_server.py mongodb --duration 10
+python3 profile_server.py oracle --duration 10
+```
+
+**Server-Side Features:**
+- Profiles database server processes (mongod, Oracle)
+- Uses Linux perf for sampling-based profiling (~1-2% overhead)
+- Generates interactive SVG flame graphs
+- Output: `server_flamegraphs/mongodb_server_20251106_171925.svg`
+
+**Requirements:**
+- Linux perf tool (`sudo yum install perf`)
+- Perl modules (`sudo yum install perl-open`)
+- FlameGraph tools (https://github.com/brendangregg/FlameGraph)
+- Sudo privileges (perf requires root to attach to processes)
+
+**When to Use Each:**
+- **Client-side**: Analyze JDBC driver, JSON serialization, network I/O overhead
+- **Server-side**: Analyze storage engine, query execution, index operations
+- **Both**: Get complete end-to-end performance picture
+
+See `SERVER_PROFILING_README.md` for detailed server profiling documentation, troubleshooting, and analysis techniques.
 
 ### Docker-based Testing
 
@@ -303,7 +339,6 @@ Generate comprehensive HTML reports with charts:
 
 ```bash
 # Generate report from collected data
-python3 generate_benchmark_report.py
 
 # View the report
 firefox benchmark_report.html
@@ -351,7 +386,6 @@ The standard workflow for comprehensive testing:
 1. **Start benchmarks in parallel** (both local and remote, background mode)
 2. **Monitor progress every 60 seconds** until completion (check log files)
 3. **Collect results** (SCP from remote system)
-4. **Generate report** (`generate_benchmark_report.py`)
 5. **Analyze results** (compare MongoDB vs Oracle performance across systems)
 
 **Note**: Whenever I say "Run the article benchmark", execute the article benchmark scripts on both the local and the remote system with a 30-minute timeout, monitor and report progress on both systems every 60 seconds until complete, then analyze the results and generate a detailed summary of the data comparing MongoDB to Oracle performance on both systems.
@@ -377,5 +411,4 @@ The standard workflow for comprehensive testing:
 
 - Test case for Oracle Duality View bug: `src/test/java/com/mongodb/TestDualityView.java`
 - Automated cross-database testing: `test.sh` script with Docker
-- Report generation: `generate_benchmark_report.py` for HTML visualization with charts
 - For comprehensive benchmark testing procedures, see the **Common Test Procedures** section above

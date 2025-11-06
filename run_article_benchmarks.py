@@ -21,6 +21,13 @@ import random
 import os
 import signal
 
+# Import server profiler for server-side flame graphs
+try:
+    from profile_server import ServerProfiler
+    SERVER_PROFILER_AVAILABLE = True
+except ImportError:
+    SERVER_PROFILER_AVAILABLE = False
+
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
 NUM_RUNS = 3
@@ -224,10 +231,29 @@ def stop_database(service_name):
     time.sleep(2)
     print("✓ Stopped")
 
-def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=False, flame_graph=False, db_name="unknown"):
-    """Run a single benchmark test, optionally with query tests and flame graph profiling."""
+def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=False, flame_graph=False, db_name="unknown", server_profile=False, db_type=None):
+    """Run a single benchmark test, optionally with query tests and flame graph profiling.
 
-    # Prepare flame graph if requested
+    Args:
+        server_profile: If True, profile the database server process (not just client)
+        db_type: Database type for server profiling ('mongodb', 'oracle', 'postgresql')
+    """
+
+    # Start server-side profiling if requested
+    server_profiler = None
+    if server_profile and db_type and SERVER_PROFILER_AVAILABLE:
+        try:
+            server_profiler = ServerProfiler(db_type, output_dir="server_flamegraphs")
+            if not server_profiler.start_profiling(duration_hint=300):  # Hint: ~5 minutes
+                print(f"    ⚠️  Server profiling failed to start")
+                server_profiler = None
+            else:
+                print(f"    🔥 Server-side profiling started for {db_type}")
+        except Exception as e:
+            print(f"    ⚠️  Server profiling error: {e}")
+            server_profiler = None
+
+    # Prepare client-side flame graph if requested
     flamegraph_file = None
     if flame_graph and os.path.exists(ASYNC_PROFILER_PATH):
         # Create flamegraph output directory if it doesn't exist
@@ -240,7 +266,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
         # Build Java command with async-profiler agent
         agent_opts = f"start,event=cpu,file={flamegraph_file}"
         cmd = f"java -agentpath:{ASYNC_PROFILER_PATH}={agent_opts} -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
-        print(f"  🔥 Profiling with flame graph: {flamegraph_file}")
+        print(f"    🔥 Client-side profiling enabled: {flamegraph_file}")
     else:
         cmd = f"java -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
 
@@ -327,8 +353,17 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
     except Exception as e:
         print(f"    ERROR: {str(e)}")
         return {"success": False, "error": str(e)}
+    finally:
+        # Stop server-side profiling if it was started
+        if server_profiler is not None:
+            try:
+                svg_path = server_profiler.stop_profiling()
+                if svg_path:
+                    print(f"    ✓ Server flame graph: {svg_path}")
+            except Exception as e:
+                print(f"    ⚠️  Server profiling stop error: {e}")
 
-def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, flame_graph=False):
+def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, flame_graph=False, server_profile=False):
     """Run a complete test suite (single or multi attribute).
 
     Args:
@@ -339,7 +374,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         measure_sizes: Whether to enable BSON/OSON object size measurement
         track_activity: If True, record database start/stop timestamps
         activity_log: List to append activity events to (format: {db_name, event, timestamp})
-        flame_graph: Whether to generate flame graphs with async-profiler
+        flame_graph: Whether to generate flame graphs with async-profiler (client-side)
+        server_profile: Whether to generate server-side flame graphs
     """
     print(f"\n{'='*80}")
     print(f"{test_type.upper()} ATTRIBUTE TESTS" + (" WITH QUERIES" if enable_queries else ""))
@@ -383,7 +419,9 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     query_links=QUERY_LINKS if enable_queries else None,
                     measure_sizes=measure_sizes,
                     flame_graph=flame_graph,
-                    db_name=db['name']
+                    db_name=db['name'],
+                    server_profile=server_profile,
+                    db_type=db['db_type']
                 )
 
                 if result['success']:
@@ -450,7 +488,9 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     query_links=QUERY_LINKS if enable_queries else None,
                     measure_sizes=measure_sizes,
                     flame_graph=flame_graph,
-                    db_name=db['name']
+                    db_name=db['name'],
+                    server_profile=server_profile,
+                    db_type=db['db_type']
                 )
 
                 if result['success']:
@@ -565,8 +605,8 @@ def run_full_comparison_suite(args):
         db['flags'] = db['flags'].replace(' -i', '').replace('-i ', '').replace(' -mv', '').replace('-mv ', '')
 
     # Run tests without indexes - restart database before each test for maximum isolation
-    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph)
-    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph)
+    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
+    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
 
     # ========== PART 2: WITH-INDEX TESTS ==========
     print(f"\n{'='*80}")
@@ -601,8 +641,8 @@ def run_full_comparison_suite(args):
     print()
 
     # Run tests with indexes and queries - restart database before each test for maximum isolation
-    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph)
-    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph)
+    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
+    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
 
     # Stop resource monitoring if running
     if monitor_proc is not None:
@@ -707,6 +747,8 @@ def main():
                         help='Disable Oracle statistics gathering (Oracle only)')
     parser.add_argument('--flame-graph', action='store_true',
                         help='Generate flame graphs for profiling (requires async-profiler)')
+    parser.add_argument('--server-profile', action='store_true',
+                        help='Generate server-side flame graphs using perf (requires FlameGraph tools and sudo)')
     args = parser.parse_args()
 
     # Use command-line values
@@ -733,7 +775,21 @@ def main():
             print("   Continuing without flame graphs...\n")
             args.flame_graph = False  # Disable flame graphs
         else:
-            print(f"\n✓ Flame graph profiling enabled - output directory: {FLAMEGRAPH_OUTPUT_DIR}/")
+            print(f"\n✓ Client-side flame graph profiling enabled - output directory: {FLAMEGRAPH_OUTPUT_DIR}/")
+
+    # Check for server profiling tools if server profiling is enabled
+    if args.server_profile:
+        if not SERVER_PROFILER_AVAILABLE:
+            print("\n❌ Server profiling requested but profile_server.py not found.")
+            print("   Continuing without server profiling...\n")
+            args.server_profile = False
+        elif not os.path.exists("FlameGraph"):
+            print("\n❌ Server profiling requested but FlameGraph tools not found.")
+            print("   Please clone FlameGraph: git clone https://github.com/brendangregg/FlameGraph")
+            print("   Continuing without server profiling...\n")
+            args.server_profile = False
+        else:
+            print(f"\n✓ Server-side profiling enabled - output directory: server_flamegraphs/")
 
     # Add -nostats flag to Oracle databases if requested
     if args.nostats:
@@ -789,12 +845,14 @@ def main():
         # Run single-attribute tests
         single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries,
                                        measure_sizes=args.measure_sizes, track_activity=True,
-                                       activity_log=activity_log, flame_graph=args.flame_graph)
+                                       activity_log=activity_log, flame_graph=args.flame_graph,
+                                       server_profile=args.server_profile)
 
         # Run multi-attribute tests
         multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries,
                                       measure_sizes=args.measure_sizes, track_activity=True,
-                                      activity_log=activity_log, flame_graph=args.flame_graph)
+                                      activity_log=activity_log, flame_graph=args.flame_graph,
+                                      server_profile=args.server_profile)
 
         # Generate summary
         generate_summary_table(single_results, multi_results)
