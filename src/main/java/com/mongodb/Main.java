@@ -34,6 +34,7 @@ public class Main {
     public static boolean useRealisticData = false;
     public static boolean useAsyncCommit = false;
     public static boolean measureObjectSizes = false;
+    public static boolean gatherOracleStats = true;  // Default: enabled
 
     // Variables to track BSON object sizes
     private static long totalBsonSize = 0;
@@ -111,6 +112,11 @@ public class Main {
                 case "-size":
                     System.out.println("Measuring BSON and OSON object sizes...");
                     measureObjectSizes = true;
+                    break;
+
+                case "-nostats":
+                    System.out.println("Disabling Oracle statistics gathering...");
+                    gatherOracleStats = false;
                     break;
 
                 case "-r":

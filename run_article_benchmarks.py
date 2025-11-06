@@ -663,6 +663,8 @@ def main():
                         help='Enable system resource monitoring (CPU, disk, network) every 5 seconds')
     parser.add_argument('--monitor-interval', type=int, default=5,
                         help='Resource monitoring interval in seconds (default: 5)')
+    parser.add_argument('--nostats', action='store_true',
+                        help='Disable Oracle statistics gathering (Oracle only)')
     args = parser.parse_args()
 
     # Use command-line values
@@ -680,6 +682,12 @@ def main():
                (args.postgresql and db['db_type'] == 'postgresql'):
                 enabled_databases.append(db)
         DATABASES = enabled_databases
+
+    # Add -nostats flag to Oracle databases if requested
+    if args.nostats:
+        for db in DATABASES:
+            if db['db_type'] == 'oracle':
+                db['flags'] += ' -nostats'
 
     # Handle full comparison mode (run both no-index and with-index tests)
     if args.full_comparison:

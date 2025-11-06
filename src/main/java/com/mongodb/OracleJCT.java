@@ -219,7 +219,7 @@ public class OracleJCT implements DatabaseOperations {
             }
 
             // Gather statistics for indexed collections to improve query performance
-            if (Main.runIndexTest && collectionName.equals("indexed")) {
+            if (Main.runIndexTest && Main.gatherOracleStats && collectionName.equals("indexed")) {
                 Statement statsStmt = connection.createStatement();
                 statsStmt.execute("BEGIN DBMS_STATS.GATHER_TABLE_STATS(USER, '" +
                                   collectionName.toUpperCase() +
