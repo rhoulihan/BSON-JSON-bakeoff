@@ -63,6 +63,37 @@ python3 monitor_resources.py --interval 5 --output metrics.json
 
 See `MONITORING_README.md` for detailed documentation on resource monitoring features, output format, and analysis examples.
 
+### Flame Graph Profiling
+
+Generate flame graphs to visualize CPU usage and identify performance bottlenecks:
+
+```bash
+# Setup async-profiler (one-time setup)
+./setup_async_profiler.sh
+
+# Run benchmarks with flame graph profiling
+python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
+
+# Flame graphs will be saved in flamegraphs/ directory
+# Files are named: {database}_{test_type}_{size}B_{attrs}attrs_{timestamp}.html
+```
+
+**Flame Graph Features:**
+- Uses async-profiler for low-overhead CPU profiling
+- Generates interactive HTML flame graphs
+- One flame graph per benchmark test
+- Flame graphs show CPU time distribution across methods
+- Hover over stack frames to see method names and percentages
+
+**Output Examples:**
+- `flamegraphs/mongodb_bson_insert_200B_10attrs_20250106_143022.html`
+- `flamegraphs/oracle_jct_query_1000B_50attrs_20250106_143145.html`
+
+**System Requirements:**
+- async-profiler 3.0 (installed via setup_async_profiler.sh)
+- Linux with perf_event support
+- Root or perf_event_paranoid <= 1
+
 ### Docker-based Testing
 
 Test multiple databases automatically:
@@ -180,6 +211,151 @@ Documents are generated in `Main.java` with:
 - `-n N`: Number of attributes to split payload across (affects realistic data structure complexity when using `-rd`)
 - `-b N`: Batch size for bulk insertions
 
+## Common Test Procedures
+
+### Remote System Access
+
+The project uses a remote OCI cloud system for comparison testing:
+- **Remote hostname**: `oci-opc` (configured in SSH config)
+- **Remote project path**: `BSON-JSON-bakeoff`
+- **SSH command**: `ssh oci-opc`
+
+### Running Benchmarks on Both Systems
+
+The standard procedure for comprehensive benchmarks involves running tests in parallel on both local and remote systems:
+
+#### Article Benchmark (Standard Test Suite)
+
+Run indexed benchmarks with queries on both systems:
+
+```bash
+# Local system (background process with 30-minute timeout)
+timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor > local_benchmark.log 2>&1 &
+
+# Remote system (background process with 30-minute timeout)
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor > remote_benchmark.log 2>&1 &"
+```
+
+#### No-Index Benchmarks (Insertion-Only Performance)
+
+Test pure insertion performance without indexes:
+
+```bash
+# Local system
+timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > local_noindex_nostats.log 2>&1 &
+
+# Remote system
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > remote_noindex_nostats.log 2>&1 &"
+```
+
+#### Indexed Benchmarks with Statistics Analysis
+
+Test with Oracle statistics gathering enabled/disabled:
+
+```bash
+# WITH --nostats flag (statistics disabled)
+timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > local_indexed_nostats.log 2>&1 &
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > remote_indexed_nostats.log 2>&1 &"
+
+# WITHOUT --nostats flag (statistics enabled, Oracle default behavior)
+timeout 1800 python3 run_article_benchmarks.py --queries --oracle --monitor > local_oracle_with_stats.log 2>&1 &
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --oracle --monitor > remote_oracle_with_stats.log 2>&1 &"
+```
+
+### Monitoring Running Benchmarks
+
+Check progress of background benchmarks:
+
+```bash
+# Local system - tail the log file
+tail -f local_benchmark.log
+
+# Remote system - SSH and tail the log file
+ssh oci-opc "tail -f BSON-JSON-bakeoff/remote_benchmark.log"
+
+# Check if processes are still running
+ps aux | grep run_article_benchmarks
+ssh oci-opc "ps aux | grep run_article_benchmarks"
+```
+
+### Collecting Results from Remote System
+
+After benchmarks complete, copy JSON results and logs from remote system:
+
+```bash
+# Copy result JSON files
+scp oci-opc:BSON-JSON-bakeoff/tmp/remote_indexed_nostats_results.json /tmp/
+scp oci-opc:BSON-JSON-bakeoff/tmp/remote_noindex_nostats_results.json /tmp/
+
+# Copy log files
+scp oci-opc:BSON-JSON-bakeoff/remote_benchmark.log ./
+scp oci-opc:BSON-JSON-bakeoff/remote_indexed_nostats.log ./
+scp oci-opc:BSON-JSON-bakeoff/remote_noindex_nostats.log ./
+
+# Verify files copied successfully
+ls -lh /tmp/*_results.json
+ls -lh *remote*.log
+```
+
+### Generating Reports from Benchmark Data
+
+Generate comprehensive HTML reports with charts:
+
+```bash
+# Generate report from collected data
+python3 generate_benchmark_report.py
+
+# View the report
+firefox benchmark_report.html
+# or
+open benchmark_report.html
+```
+
+The report generation script automatically:
+1. Loads local results from `/tmp/local_*_results.json`
+2. Fetches remote results via SCP from `oci-opc:BSON-JSON-bakeoff/tmp/remote_*_results.json`
+3. Generates `benchmark_report.html` with nested tabs:
+   - Cover Page (executive summary)
+   - Local System → Indexed / No Index subtabs
+   - Remote System → Indexed / No Index subtabs
+
+### Common Result File Locations
+
+**Local System:**
+- Results: `/tmp/local_indexed_nostats_results.json`, `/tmp/local_noindex_nostats_results.json`
+- Logs: `local_benchmark.log`, `local_indexed_nostats.log`, `local_noindex_nostats.log`
+- System info: `/tmp/local_system_info.json`
+
+**Remote System:**
+- Results: `oci-opc:BSON-JSON-bakeoff/tmp/remote_indexed_nostats_results.json`, `remote_noindex_nostats_results.json`
+- Logs: `oci-opc:BSON-JSON-bakeoff/remote_benchmark.log`, `remote_indexed_nostats.log`, `remote_noindex_nostats.log`
+- System info: `oci-opc:BSON-JSON-bakeoff/tmp/remote_system_info.json`
+
+### Standard Benchmark Configurations
+
+Common flag combinations for different test scenarios:
+
+| Scenario | Flags | Purpose |
+|----------|-------|---------|
+| **Full comparison** | `--queries --mongodb --oracle --monitor` | Indexed insertion + queries with monitoring |
+| **Insertion only** | `--no-index --mongodb --oracle --monitor` | Pure insertion without indexes |
+| **Without stats** | `--queries --mongodb --oracle --nostats --monitor` | Test Oracle performance without statistics gathering overhead |
+| **MongoDB only** | `--queries --mongodb --monitor` | Test only MongoDB (useful for baselines) |
+| **Oracle only** | `--queries --oracle --monitor --nostats` | Test only Oracle JCT |
+| **Custom docs/runs** | `--queries --mongodb --oracle --num-docs 5000 --num-runs 5` | Customize document count and run count |
+
+### Automated Test Execution Pattern
+
+The standard workflow for comprehensive testing:
+
+1. **Start benchmarks in parallel** (both local and remote, background mode)
+2. **Monitor progress every 60 seconds** until completion (check log files)
+3. **Collect results** (SCP from remote system)
+4. **Generate report** (`generate_benchmark_report.py`)
+5. **Analyze results** (compare MongoDB vs Oracle performance across systems)
+
+**Note**: Whenever I say "Run the article benchmark", execute the article benchmark scripts on both the local and the remote system with a 30-minute timeout, monitor and report progress on both systems every 60 seconds until complete, then analyze the results and generate a detailed summary of the data comparing MongoDB to Oracle performance on both systems.
+
 ## Development Notes
 
 ### Adding New Database Support
@@ -201,5 +377,5 @@ Documents are generated in `Main.java` with:
 
 - Test case for Oracle Duality View bug: `src/test/java/com/mongodb/TestDualityView.java`
 - Automated cross-database testing: `test.sh` script with Docker
-- Report generation: `generate_report.py` for HTML visualization with charts
-- Whenever I say "Run the article benchmark" execute the article benchmark scripts on both the local and the remote system with a 30 minute timeout, monitor and report progress on both systems every 60 seconds until complete then analyze the results and generate a detailed summary of the data comparing mongodb to oracle performance on both systems. IMPORTANT: For the local system use `Bash` with `run_in_background: true` and `timeout: 1800000` (30 minutes in milliseconds) to run `timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle > local_benchmark.log 2>&1`. For the remote system use `Bash` with `timeout: 10000` to run `ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle > remote_benchmark.log 2>&1 &"`
+- Report generation: `generate_benchmark_report.py` for HTML visualization with charts
+- For comprehensive benchmark testing procedures, see the **Common Test Procedures** section above

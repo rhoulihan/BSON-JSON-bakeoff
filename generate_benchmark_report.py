@@ -172,49 +172,66 @@ def get_database_activity_annotations(results, metrics):
 
     return json.dumps(annotations)
 
-def generate_html_report(local_results, remote_results, local_metrics, remote_metrics):
-    """Generate comprehensive HTML report"""
+def generate_html_report(local_indexed, local_noindex, remote_indexed, remote_noindex,
+                          local_indexed_metrics, remote_indexed_metrics):
+    """Generate comprehensive HTML report with indexed/noindex subtabs"""
 
-    # Extract data for charts
-    local_single_labels, local_single_mongo = get_throughput_data(local_results, 'single_attribute', 'mongodb')
-    _, local_single_oracle = get_throughput_data(local_results, 'single_attribute', 'oracle_jct')
+    # Extract data for local indexed
+    local_idx_single_labels, local_idx_single_mongo = get_throughput_data(local_indexed, 'single_attribute', 'mongodb')
+    _, local_idx_single_oracle = get_throughput_data(local_indexed, 'single_attribute', 'oracle_jct')
+    local_idx_multi_labels, local_idx_multi_mongo = get_throughput_data(local_indexed, 'multi_attribute', 'mongodb')
+    _, local_idx_multi_oracle = get_throughput_data(local_indexed, 'multi_attribute', 'oracle_jct')
 
-    local_multi_labels, local_multi_mongo = get_throughput_data(local_results, 'multi_attribute', 'mongodb')
-    _, local_multi_oracle = get_throughput_data(local_results, 'multi_attribute', 'oracle_jct')
+    # Extract data for local noindex
+    local_noidx_single_labels, local_noidx_single_mongo = get_throughput_data(local_noindex, 'single_attribute', 'mongodb')
+    _, local_noidx_single_oracle = get_throughput_data(local_noindex, 'single_attribute', 'oracle_jct')
+    local_noidx_multi_labels, local_noidx_multi_mongo = get_throughput_data(local_noindex, 'multi_attribute', 'mongodb')
+    _, local_noidx_multi_oracle = get_throughput_data(local_noindex, 'multi_attribute', 'oracle_jct')
 
-    remote_single_labels, remote_single_mongo = get_throughput_data(remote_results, 'single_attribute', 'mongodb')
-    _, remote_single_oracle = get_throughput_data(remote_results, 'single_attribute', 'oracle_jct')
+    # Extract data for remote indexed
+    remote_idx_single_labels, remote_idx_single_mongo = get_throughput_data(remote_indexed, 'single_attribute', 'mongodb')
+    _, remote_idx_single_oracle = get_throughput_data(remote_indexed, 'single_attribute', 'oracle_jct')
+    remote_idx_multi_labels, remote_idx_multi_mongo = get_throughput_data(remote_indexed, 'multi_attribute', 'mongodb')
+    _, remote_idx_multi_oracle = get_throughput_data(remote_indexed, 'multi_attribute', 'oracle_jct')
 
-    remote_multi_labels, remote_multi_mongo = get_throughput_data(remote_results, 'multi_attribute', 'mongodb')
-    _, remote_multi_oracle = get_throughput_data(remote_results, 'multi_attribute', 'oracle_jct')
+    # Extract data for remote noindex
+    remote_noidx_single_labels, remote_noidx_single_mongo = get_throughput_data(remote_noindex, 'single_attribute', 'mongodb')
+    _, remote_noidx_single_oracle = get_throughput_data(remote_noindex, 'single_attribute', 'oracle_jct')
+    remote_noidx_multi_labels, remote_noidx_multi_mongo = get_throughput_data(remote_noindex, 'multi_attribute', 'mongodb')
+    _, remote_noidx_multi_oracle = get_throughput_data(remote_noindex, 'multi_attribute', 'oracle_jct')
 
-    # Query performance data
-    _, local_single_mongo_q = get_query_data(local_results, 'single_attribute', 'mongodb')
-    _, local_single_oracle_q = get_query_data(local_results, 'single_attribute', 'oracle_jct')
-    _, local_multi_mongo_q = get_query_data(local_results, 'multi_attribute', 'mongodb')
-    _, local_multi_oracle_q = get_query_data(local_results, 'multi_attribute', 'oracle_jct')
+    # Query performance data (indexed only - no queries on noindex)
+    _, local_idx_single_mongo_q = get_query_data(local_indexed, 'single_attribute', 'mongodb')
+    _, local_idx_single_oracle_q = get_query_data(local_indexed, 'single_attribute', 'oracle_jct')
+    _, local_idx_multi_mongo_q = get_query_data(local_indexed, 'multi_attribute', 'mongodb')
+    _, local_idx_multi_oracle_q = get_query_data(local_indexed, 'multi_attribute', 'oracle_jct')
 
-    _, remote_single_mongo_q = get_query_data(remote_results, 'single_attribute', 'mongodb')
-    _, remote_single_oracle_q = get_query_data(remote_results, 'single_attribute', 'oracle_jct')
-    _, remote_multi_mongo_q = get_query_data(remote_results, 'multi_attribute', 'mongodb')
-    _, remote_multi_oracle_q = get_query_data(remote_results, 'multi_attribute', 'oracle_jct')
+    _, remote_idx_single_mongo_q = get_query_data(remote_indexed, 'single_attribute', 'mongodb')
+    _, remote_idx_single_oracle_q = get_query_data(remote_indexed, 'single_attribute', 'oracle_jct')
+    _, remote_idx_multi_mongo_q = get_query_data(remote_indexed, 'multi_attribute', 'mongodb')
+    _, remote_idx_multi_oracle_q = get_query_data(remote_indexed, 'multi_attribute', 'oracle_jct')
 
     # Resource utilization
-    local_times, local_cpu, local_iops, local_iowait = get_resource_timeline(local_metrics)
-    remote_times, remote_cpu, remote_iops, remote_iowait = get_resource_timeline(remote_metrics)
+    local_times, local_cpu, local_iops, local_iowait = get_resource_timeline(local_indexed_metrics)
+    remote_times, remote_cpu, remote_iops, remote_iowait = get_resource_timeline(remote_indexed_metrics)
 
     # Get database activity annotations for resource charts
-    local_annotations = get_database_activity_annotations(local_results, local_metrics)
-    remote_annotations = get_database_activity_annotations(remote_results, remote_metrics)
+    local_annotations = get_database_activity_annotations(local_indexed, local_indexed_metrics)
+    remote_annotations = get_database_activity_annotations(remote_indexed, remote_indexed_metrics)
 
     # Calculate averages for summary
     def safe_avg(data):
         return sum(data) / len(data) if data else 0
 
-    local_mongo_avg = safe_avg(local_single_mongo + local_multi_mongo)
-    local_oracle_avg = safe_avg(local_single_oracle + local_multi_oracle)
-    remote_mongo_avg = safe_avg(remote_single_mongo + remote_multi_mongo)
-    remote_oracle_avg = safe_avg(remote_single_oracle + remote_multi_oracle)
+    local_idx_mongo_avg = safe_avg(local_idx_single_mongo + local_idx_multi_mongo)
+    local_idx_oracle_avg = safe_avg(local_idx_single_oracle + local_idx_multi_oracle)
+    local_noidx_mongo_avg = safe_avg(local_noidx_single_mongo + local_noidx_multi_mongo)
+    local_noidx_oracle_avg = safe_avg(local_noidx_single_oracle + local_noidx_multi_oracle)
+
+    remote_idx_mongo_avg = safe_avg(remote_idx_single_mongo + remote_idx_multi_mongo)
+    remote_idx_oracle_avg = safe_avg(remote_idx_single_oracle + remote_idx_multi_oracle)
+    remote_noidx_mongo_avg = safe_avg(remote_noidx_single_mongo + remote_noidx_multi_mongo)
+    remote_noidx_oracle_avg = safe_avg(remote_noidx_single_oracle + remote_noidx_multi_oracle)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -520,6 +537,45 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
             flex-direction: column;
         }}
 
+        /* Subtab styling */
+        .subtabs {{
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-bottom: 2px solid #e0e0e0;
+        }}
+
+        .subtab {{
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f8f8f8;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s ease;
+        }}
+
+        .subtab:hover {{
+            background: #e8e8e8;
+            color: #333;
+        }}
+
+        .subtab.active {{
+            background: #667eea;
+            color: white;
+        }}
+
+        .subtab-content {{
+            display: none;
+        }}
+
+        .subtab-content.active {{
+            display: block;
+        }}
+
         /* Scrollbar styling */
         .tab-content::-webkit-scrollbar {{
             width: 10px;
@@ -683,8 +739,8 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
 
         <div class="tabs">
             <button class="tab active" onclick="openTab(event, 'cover')">Cover Page</button>
-            <button class="tab" onclick="openTab(event, 'local')">Local System Analysis</button>
-            <button class="tab" onclick="openTab(event, 'remote')">Remote System Analysis</button>
+            <button class="tab" onclick="openTab(event, 'local')">Local System</button>
+            <button class="tab" onclick="openTab(event, 'remote')">Remote System</button>
         </div>
 
         <!-- COVER PAGE TAB -->
@@ -715,8 +771,8 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                         <h4>Evidence 2: MongoDB Achieves Higher Throughput</h4>
                         <div class="metric">10.2x / 2.7x</div>
                         <div class="description">
-                            Local: MongoDB achieves {local_mongo_avg:,.0f} docs/sec vs Oracle's {local_oracle_avg:,.0f} docs/sec (10.2x difference).
-                            Remote: MongoDB achieves {remote_mongo_avg:,.0f} docs/sec vs Oracle's {remote_oracle_avg:,.0f} docs/sec (2.7x difference).
+                            Local (Indexed): MongoDB achieves {local_idx_mongo_avg:,.0f} docs/sec vs Oracle's {local_idx_oracle_avg:,.0f} docs/sec.
+                            Remote (Indexed): MongoDB achieves {remote_idx_mongo_avg:,.0f} docs/sec vs Oracle's {remote_idx_oracle_avg:,.0f} docs/sec.
                             MongoDB demonstrates consistently higher throughput across both systems and all document sizes tested.
                         </div>
                     </div>
@@ -784,8 +840,8 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                     Patterns hold across all document sizes tested. Storage performance does not explain the observed differences.
 
                     <br><br>5. <strong>CPU architecture affects both databases differently:</strong> Remote system (EPYC 2023) vs local (i7-8700K 2017):
-                    MongoDB improves 1.25x ({local_mongo_avg:,.0f} → {remote_mongo_avg:,.0f} docs/sec),
-                    Oracle improves 4.7x ({local_oracle_avg:,.0f} → {remote_oracle_avg:,.0f} docs/sec).
+                    MongoDB (Indexed) improves 1.25x ({local_idx_mongo_avg:,.0f} → {remote_idx_mongo_avg:,.0f} docs/sec),
+                    Oracle (Indexed) improves 4.7x ({local_idx_oracle_avg:,.0f} → {remote_idx_oracle_avg:,.0f} docs/sec).
                     Modern CPU architecture provides greater benefit to Oracle operations.
                 </p>
             </div>
@@ -793,22 +849,29 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
 
         <!-- LOCAL SYSTEM TAB -->
         <div id="local" class="tab-content">
+            <div class="subtabs">
+                <button class="subtab active" onclick="openSubTab(event, 'local', 'local-indexed')">Indexed</button>
+                <button class="subtab" onclick="openSubTab(event, 'local', 'local-noindex')">No Index</button>
+            </div>
+
+            <!-- LOCAL INDEXED SUBTAB -->
+            <div id="local-indexed" class="subtab-content active">
             <div class="summary-box">
-                <h2>Local System Executive Summary</h2>
+                <h2>Local System - Indexed Performance</h2>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <h4>MongoDB Average</h4>
-                        <div class="value">{local_mongo_avg:,.0f}</div>
+                        <div class="value">{local_idx_mongo_avg:,.0f}</div>
                         <div class="label">docs/sec</div>
                     </div>
                     <div class="stat-card">
                         <h4>Oracle Average</h4>
-                        <div class="value">{local_oracle_avg:,.0f}</div>
+                        <div class="value">{local_idx_oracle_avg:,.0f}</div>
                         <div class="label">docs/sec</div>
                     </div>
                     <div class="stat-card">
                         <h4>MongoDB Advantage</h4>
-                        <div class="value">{(local_mongo_avg/local_oracle_avg if local_oracle_avg > 0 else 0):.1f}x</div>
+                        <div class="value">{(local_idx_mongo_avg/local_idx_oracle_avg if local_idx_oracle_avg > 0 else 0):.1f}x</div>
                         <div class="label">faster insertions</div>
                     </div>
                     <div class="stat-card">
@@ -897,34 +960,109 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                 </div>
                 <div class="collapsible-content">
                     <h3>Single Attribute Results</h3>
-                    {generate_results_table(local_results, 'single_attribute', 'Local')}
+                    {generate_results_table(local_indexed, 'single_attribute', 'Local Indexed')}
 
                     <h3>Multi Attribute Results</h3>
-                    {generate_results_table(local_results, 'multi_attribute', 'Local')}
+                    {generate_results_table(local_indexed, 'multi_attribute', 'Local Indexed')}
 
-                    {generate_resource_summary_table(local_metrics, None)}
+                    {generate_resource_summary_table(local_indexed_metrics, None)}
                 </div>
+            </div>
+            </div>
+
+            <!-- LOCAL NO-INDEX SUBTAB -->
+            <div id="local-noindex" class="subtab-content">
+            <div class="summary-box">
+                <h2>Local System - No Index Performance</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>MongoDB Average</h4>
+                        <div class="value">{local_noidx_mongo_avg:,.0f}</div>
+                        <div class="label">docs/sec</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Oracle Average</h4>
+                        <div class="value">{local_noidx_oracle_avg:,.0f}</div>
+                        <div class="label">docs/sec</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>MongoDB Advantage</h4>
+                        <div class="value">{(local_noidx_mongo_avg/local_noidx_oracle_avg if local_noidx_oracle_avg > 0 else 0):.1f}x</div>
+                        <div class="label">faster insertions</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>CPU Architecture</h4>
+                        <div class="value">i7-8700K</div>
+                        <div class="label">Coffee Lake 2017</div>
+                    </div>
+                </div>
+
+                <div class="comparison-box" style="background: rgba(255,255,255,0.15); border-left-color: #f39c12; margin-top: 20px;">
+                    <strong>System Characteristics:</strong> Intel i7-8700K (6-core, 12-thread, 3.7GHz base/4.7GHz boost),
+                    DDR4-2666 RAM, SATA SSD (43,200 IOPS capacity). Storage utilization: 0.6% of capacity.
+                    This test measures pure insertion performance without any indexes.
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection(this)">
+                    <h2>Insertion Performance Comparison (No Index)</h2>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Single Attribute Tests</h3>
+                    <div class="chart-container">
+                        <canvas id="localNoindexSingleChart"></canvas>
+                    </div>
+
+                    <h3>Multi Attribute Tests</h3>
+                    <div class="chart-container">
+                        <canvas id="localNoindexMultiChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection(this)">
+                    <h2>Detailed Results Tables</h2>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Single Attribute Results</h3>
+                    {generate_results_table(local_noindex, 'single_attribute', 'Local No-Index')}
+
+                    <h3>Multi Attribute Results</h3>
+                    {generate_results_table(local_noindex, 'multi_attribute', 'Local No-Index')}
+                </div>
+            </div>
             </div>
         </div>
 
         <!-- REMOTE SYSTEM TAB -->
         <div id="remote" class="tab-content">
+            <div class="subtabs">
+                <button class="subtab active" onclick="openSubTab(event, 'remote', 'remote-indexed')">Indexed</button>
+                <button class="subtab" onclick="openSubTab(event, 'remote', 'remote-noindex')">No Index</button>
+            </div>
+
+            <!-- REMOTE INDEXED SUBTAB -->
+            <div id="remote-indexed" class="subtab-content active">
             <div class="summary-box">
-                <h2>Remote System Executive Summary</h2>
+                <h2>Remote System - Indexed Performance</h2>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <h4>MongoDB Average</h4>
-                        <div class="value">{remote_mongo_avg:,.0f}</div>
+                        <div class="value">{remote_idx_mongo_avg:,.0f}</div>
                         <div class="label">docs/sec</div>
                     </div>
                     <div class="stat-card">
                         <h4>Oracle Average</h4>
-                        <div class="value">{remote_oracle_avg:,.0f}</div>
+                        <div class="value">{remote_idx_oracle_avg:,.0f}</div>
                         <div class="label">docs/sec</div>
                     </div>
                     <div class="stat-card">
                         <h4>MongoDB Advantage</h4>
-                        <div class="value">{(remote_mongo_avg/remote_oracle_avg if remote_oracle_avg > 0 else 0):.1f}x</div>
+                        <div class="value">{(remote_idx_mongo_avg/remote_idx_oracle_avg if remote_idx_oracle_avg > 0 else 0):.1f}x</div>
                         <div class="label">faster</div>
                     </div>
                     <div class="stat-card">
@@ -1019,13 +1157,81 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                 </div>
                 <div class="collapsible-content">
                     <h3>Single Attribute Results</h3>
-                    {generate_results_table(remote_results, 'single_attribute', 'Remote')}
+                    {generate_results_table(remote_indexed, 'single_attribute', 'Remote Indexed')}
 
                     <h3>Multi Attribute Results</h3>
-                    {generate_results_table(remote_results, 'multi_attribute', 'Remote')}
+                    {generate_results_table(remote_indexed, 'multi_attribute', 'Remote Indexed')}
 
-                    {generate_resource_summary_table(None, remote_metrics)}
+                    {generate_resource_summary_table(None, remote_indexed_metrics)}
                 </div>
+            </div>
+            </div>
+
+            <!-- REMOTE NO-INDEX SUBTAB -->
+            <div id="remote-noindex" class="subtab-content">
+            <div class="summary-box">
+                <h2>Remote System - No Index Performance</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>MongoDB Average</h4>
+                        <div class="value">{remote_noidx_mongo_avg:,.0f}</div>
+                        <div class="label">docs/sec</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Oracle Average</h4>
+                        <div class="value">{remote_noidx_oracle_avg:,.0f}</div>
+                        <div class="label">docs/sec</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>MongoDB Advantage</h4>
+                        <div class="value">{(remote_noidx_mongo_avg/remote_noidx_oracle_avg if remote_noidx_oracle_avg > 0 else 0):.1f}x</div>
+                        <div class="label">faster</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>CPU Architecture</h4>
+                        <div class="value">EPYC 9J14</div>
+                        <div class="label">Genoa 2023</div>
+                    </div>
+                </div>
+
+                <div class="comparison-box" style="background: rgba(255,255,255,0.15); border-left-color: #f39c12; margin-top: 20px;">
+                    <strong>System Characteristics:</strong> AMD EPYC 9J14 (Genoa 2023, 96-core processor with 4 allocated cores),
+                    DDR5-4800 RAM, OCI Block Volume (3,107 IOPS capacity). Storage utilization: 7.3% of capacity.
+                    This test measures pure insertion performance without any indexes.
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection(this)">
+                    <h2>Insertion Performance Comparison (No Index)</h2>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Single Attribute Tests</h3>
+                    <div class="chart-container">
+                        <canvas id="remoteNoindexSingleChart"></canvas>
+                    </div>
+
+                    <h3>Multi Attribute Tests</h3>
+                    <div class="chart-container">
+                        <canvas id="remoteNoindexMultiChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection(this)">
+                    <h2>Detailed Results Tables</h2>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Single Attribute Results</h3>
+                    {generate_results_table(remote_noindex, 'single_attribute', 'Remote No-Index')}
+
+                    <h3>Multi Attribute Results</h3>
+                    {generate_results_table(remote_noindex, 'multi_attribute', 'Remote No-Index')}
+                </div>
+            </div>
             </div>
         </div>
 
@@ -1076,6 +1282,28 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
             evt.currentTarget.classList.add('active');
         }}
 
+        // Subtab switching function
+        function openSubTab(evt, parentTab, subtabId) {{
+            // Get the parent tab container
+            var parentContainer = document.getElementById(parentTab);
+
+            // Hide all subtab contents within this parent tab
+            var subtabContents = parentContainer.getElementsByClassName('subtab-content');
+            for (var i = 0; i < subtabContents.length; i++) {{
+                subtabContents[i].classList.remove('active');
+            }}
+
+            // Remove active class from all subtabs within this parent tab
+            var subtabs = parentContainer.getElementsByClassName('subtab');
+            for (var i = 0; i < subtabs.length; i++) {{
+                subtabs[i].classList.remove('active');
+            }}
+
+            // Show the selected subtab and mark button as active
+            document.getElementById(subtabId).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }}
+
         // Collapsible section toggle function
         function toggleSection(element) {{
             const content = element.nextElementSibling;
@@ -1099,15 +1327,15 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
             iowait: 'rgb(255, 193, 7)'
         }};
 
-        // Local Single Attribute Chart
+        // Local Indexed Single Attribute Chart
         new Chart(document.getElementById('localSingleChart'), {{
             type: 'line',
             data: {{
-                labels: {json.dumps(local_single_labels)},
+                labels: {json.dumps(local_idx_single_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {json.dumps(local_single_mongo)},
+                        data: {json.dumps(local_idx_single_mongo)},
                         borderColor: chartColors.mongodb,
                         backgroundColor: 'rgba(76, 175, 80, 0.1)',
                         borderWidth: 3,
@@ -1116,7 +1344,7 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                     }},
                     {{
                         label: 'Oracle JCT',
-                        data: {json.dumps(local_single_oracle)},
+                        data: {json.dumps(local_idx_single_oracle)},
                         borderColor: chartColors.oracle,
                         backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 3,
@@ -1173,11 +1401,11 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('localMultiChart'), {{
             type: 'line',
             data: {{
-                labels: {json.dumps(local_multi_labels)},
+                labels: {json.dumps(local_idx_multi_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {json.dumps(local_multi_mongo)},
+                        data: {json.dumps(local_idx_multi_mongo)},
                         borderColor: chartColors.mongodb,
                         backgroundColor: 'rgba(76, 175, 80, 0.1)',
                         borderWidth: 3,
@@ -1186,7 +1414,7 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                     }},
                     {{
                         label: 'Oracle JCT',
-                        data: {json.dumps(local_multi_oracle)},
+                        data: {json.dumps(local_idx_multi_oracle)},
                         borderColor: chartColors.oracle,
                         backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 3,
@@ -1243,18 +1471,18 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('oracleComparisonChart'), {{
             type: 'bar',
             data: {{
-                labels: {json.dumps(local_single_labels + local_multi_labels)},
+                labels: {json.dumps(local_idx_single_labels + local_idx_multi_labels)},
                 datasets: [
                     {{
                         label: 'Oracle Local (i7-8700K)',
-                        data: {json.dumps(local_single_oracle + local_multi_oracle)},
+                        data: {json.dumps(local_idx_single_oracle + local_idx_multi_oracle)},
                         backgroundColor: 'rgba(156, 39, 176, 0.7)',
                         borderColor: chartColors.local,
                         borderWidth: 2
                     }},
                     {{
                         label: 'Oracle Remote (EPYC 9J14)',
-                        data: {json.dumps(remote_single_oracle + remote_multi_oracle)},
+                        data: {json.dumps(remote_idx_single_oracle + remote_idx_multi_oracle)},
                         backgroundColor: 'rgba(33, 150, 243, 0.7)',
                         borderColor: chartColors.remote,
                         borderWidth: 2
@@ -1309,18 +1537,18 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('localSingleQueryChart'), {{
             type: 'bar',
             data: {{
-                labels: {json.dumps(local_single_labels)},
+                labels: {json.dumps(local_idx_single_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {json.dumps(local_single_mongo_q)},
+                        data: {json.dumps(local_idx_single_mongo_q)},
                         backgroundColor: 'rgba(76, 175, 80, 0.7)',
                         borderColor: chartColors.mongodb,
                         borderWidth: 2
                     }},
                     {{
                         label: 'Oracle JCT',
-                        data: {json.dumps(local_single_oracle_q)},
+                        data: {json.dumps(local_idx_single_oracle_q)},
                         backgroundColor: 'rgba(255, 152, 0, 0.7)',
                         borderColor: chartColors.oracle,
                         borderWidth: 2
@@ -1368,18 +1596,18 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('localMultiQueryChart'), {{
             type: 'bar',
             data: {{
-                labels: {json.dumps(local_multi_labels)},
+                labels: {json.dumps(local_idx_multi_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON',
-                        data: {json.dumps(local_multi_mongo_q)},
+                        data: {json.dumps(local_idx_multi_mongo_q)},
                         backgroundColor: 'rgba(76, 175, 80, 0.7)',
                         borderColor: chartColors.mongodb,
                         borderWidth: 2
                     }},
                     {{
                         label: 'Oracle JCT',
-                        data: {json.dumps(local_multi_oracle_q)},
+                        data: {json.dumps(local_idx_multi_oracle_q)},
                         backgroundColor: 'rgba(255, 152, 0, 0.7)',
                         borderColor: chartColors.oracle,
                         borderWidth: 2
@@ -1632,11 +1860,11 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('remoteSingleChart'), {{
             type: 'line',
             data: {{
-                labels: {json.dumps(remote_single_labels)},
+                labels: {json.dumps(remote_idx_single_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON (EPYC 9J14)',
-                        data: {json.dumps(remote_single_mongo)},
+                        data: {json.dumps(remote_idx_single_mongo)},
                         borderColor: chartColors.mongodb,
                         backgroundColor: 'rgba(76, 175, 80, 0.1)',
                         borderWidth: 3,
@@ -1645,7 +1873,7 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                     }},
                     {{
                         label: 'Oracle JCT (EPYC 9J14)',
-                        data: {json.dumps(remote_single_oracle)},
+                        data: {json.dumps(remote_idx_single_oracle)},
                         borderColor: chartColors.oracle,
                         backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 3,
@@ -1702,11 +1930,11 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('remoteMultiChart'), {{
             type: 'line',
             data: {{
-                labels: {json.dumps(remote_multi_labels)},
+                labels: {json.dumps(remote_idx_multi_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON (EPYC 9J14)',
-                        data: {json.dumps(remote_multi_mongo)},
+                        data: {json.dumps(remote_idx_multi_mongo)},
                         borderColor: chartColors.mongodb,
                         backgroundColor: 'rgba(76, 175, 80, 0.1)',
                         borderWidth: 3,
@@ -1715,7 +1943,7 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
                     }},
                     {{
                         label: 'Oracle JCT (EPYC 9J14)',
-                        data: {json.dumps(remote_multi_oracle)},
+                        data: {json.dumps(remote_idx_multi_oracle)},
                         borderColor: chartColors.oracle,
                         backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 3,
@@ -1772,18 +2000,18 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('remoteSingleQueryChart'), {{
             type: 'bar',
             data: {{
-                labels: {json.dumps(remote_single_labels)},
+                labels: {json.dumps(remote_idx_single_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON (EPYC 9J14)',
-                        data: {json.dumps(remote_single_mongo_q)},
+                        data: {json.dumps(remote_idx_single_mongo_q)},
                         backgroundColor: 'rgba(76, 175, 80, 0.7)',
                         borderColor: chartColors.mongodb,
                         borderWidth: 2
                     }},
                     {{
                         label: 'Oracle JCT (EPYC 9J14)',
-                        data: {json.dumps(remote_single_oracle_q)},
+                        data: {json.dumps(remote_idx_single_oracle_q)},
                         backgroundColor: 'rgba(255, 152, 0, 0.7)',
                         borderColor: chartColors.oracle,
                         borderWidth: 2
@@ -1831,18 +2059,18 @@ def generate_html_report(local_results, remote_results, local_metrics, remote_me
         new Chart(document.getElementById('remoteMultiQueryChart'), {{
             type: 'bar',
             data: {{
-                labels: {json.dumps(remote_multi_labels)},
+                labels: {json.dumps(remote_idx_multi_labels)},
                 datasets: [
                     {{
                         label: 'MongoDB BSON (EPYC 9J14)',
-                        data: {json.dumps(remote_multi_mongo_q)},
+                        data: {json.dumps(remote_idx_multi_mongo_q)},
                         backgroundColor: 'rgba(76, 175, 80, 0.7)',
                         borderColor: chartColors.mongodb,
                         borderWidth: 2
                     }},
                     {{
                         label: 'Oracle JCT (EPYC 9J14)',
-                        data: {json.dumps(remote_multi_oracle_q)},
+                        data: {json.dumps(remote_idx_multi_oracle_q)},
                         backgroundColor: 'rgba(255, 152, 0, 0.7)',
                         borderColor: chartColors.oracle,
                         borderWidth: 2
@@ -2403,33 +2631,44 @@ def main():
     """Main execution"""
     print("Loading benchmark data...")
 
-    # Load local results
-    local_results = load_json('article_benchmark_results.json')
-    local_metrics = load_json('resource_metrics.json')
+    # Load local indexed results
+    local_indexed = load_json('/tmp/local_indexed_nostats_results.json')
+    local_indexed_metrics = load_json('resource_metrics.json')
+
+    # Load local noindex results
+    local_noindex = load_json('/tmp/local_noindex_nostats_results.json')
+    local_noindex_metrics = None  # No separate metrics for noindex currently
 
     # Load remote results (try SSH)
     print("Fetching remote results...")
     import subprocess
     try:
-        # Fetch remote results
-        subprocess.run(['scp', 'oci-opc:BSON-JSON-bakeoff/article_benchmark_results.json', '/tmp/remote_benchmark_results.json'],
+        # Fetch remote indexed results
+        subprocess.run(['scp', 'oci-opc:BSON-JSON-bakeoff/tmp/remote_indexed_nostats_results.json', '/tmp/remote_indexed_nostats_results.json'],
                       check=True, capture_output=True)
         subprocess.run(['scp', 'oci-opc:BSON-JSON-bakeoff/resource_metrics.json', '/tmp/remote_resource_metrics.json'],
                       check=True, capture_output=True)
+        subprocess.run(['scp', 'oci-opc:BSON-JSON-bakeoff/tmp/remote_noindex_nostats_results.json', '/tmp/remote_noindex_nostats_results.json'],
+                      check=True, capture_output=True)
 
-        remote_results = load_json('/tmp/remote_benchmark_results.json')
-        remote_metrics = load_json('/tmp/remote_resource_metrics.json')
+        remote_indexed = load_json('/tmp/remote_indexed_nostats_results.json')
+        remote_indexed_metrics = load_json('/tmp/remote_resource_metrics.json')
+        remote_noindex = load_json('/tmp/remote_noindex_nostats_results.json')
+        remote_noindex_metrics = None
     except Exception as e:
         print(f"Warning: Could not fetch remote results: {e}")
-        remote_results = None
-        remote_metrics = None
+        remote_indexed = None
+        remote_indexed_metrics = None
+        remote_noindex = None
+        remote_noindex_metrics = None
 
-    if not local_results:
+    if not local_indexed and not local_noindex:
         print("Error: No local results found. Run benchmarks first.")
         return 1
 
     print("Generating HTML report...")
-    html = generate_html_report(local_results, remote_results, local_metrics, remote_metrics)
+    html = generate_html_report(local_indexed, local_noindex, remote_indexed, remote_noindex,
+                                 local_indexed_metrics, remote_indexed_metrics)
 
     output_file = 'benchmark_report.html'
     with open(output_file, 'w') as f:

@@ -58,3 +58,27 @@ article_benchmark_results.json
 benchmark_report.html
 full_comparison_results.json
 resource_metrics_full.json
+flamegraphs/
+
+# Oracle tuning and optimization files
+ORACLE_*.md
+oracle_*.md
+*oracle*tuning*.md
+*oracle*optimization*.md
+
+# Analysis and summary reports (temporary)
+*_analysis*.txt
+*_summary*.txt
+*_comparison*.txt
+*_investigation*.txt
+IMPLEMENTATION_SUMMARY.txt
+FINAL_REPORT_SUMMARY.txt
+COMPREHENSIVE_*.txt
+
+# Monitoring and validation scripts (local use only)
+monitor_*.sh
+*_validation.sh
+*_baseline*.sh
+system_baseline_*.txt
+kernel_install_options.txt
+download_kernel*.sh
