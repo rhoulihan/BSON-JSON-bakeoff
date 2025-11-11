@@ -256,13 +256,13 @@ def cleanup_database_files(db_type):
     print(f"  Cleaning {db_type} data files...", end=" ", flush=True)
 
     if db_type == "mongodb":
-        # MongoDB data is at /var/lib/mongo (or symlink to /var/oled/mongodb_data)
-        # Remove all files but preserve directory structure
-        cleanup_cmd = "sudo rm -rf /var/lib/mongo/* 2>/dev/null"
+        # MongoDB data is at /var/oled/mongodb_data (configured in /etc/mongod.conf)
+        # Remove and recreate to ensure complete cleanup with correct SELinux context
+        cleanup_cmd = "sudo rm -rf /var/oled/mongodb_data && sudo mkdir -p /var/oled/mongodb_data && sudo chown -R mongod:mongod /var/oled/mongodb_data && sudo restorecon -Rv /var/oled/mongodb_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     elif db_type == "oracle":
-        # Oracle data is at /opt/oracle/oradata/FREE (or symlink to /var/oled/oracle_data/FREE)
+        # Oracle data is at /var/oled/oracle_data (symlinked from /opt/oracle/oradata/FREE)
         # Remove and recreate to ensure complete cleanup
         cleanup_cmd = "sudo rm -rf /var/oled/oracle_data && sudo mkdir -p /var/oled/oracle_data/FREE && sudo chown -R oracle:oinstall /var/oled/oracle_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
