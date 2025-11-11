@@ -252,19 +252,22 @@ def stop_database(service_name):
     print("✓ Stopped")
 
 def cleanup_database_files(db_type):
+    # DISABLED: This function was deleting Oracle control files
+    print(f"  Skipping file cleanup for {db_type} (not needed)", flush=True)
+    return
     """Clean up database data files to free disk space after each test."""
     print(f"  Cleaning {db_type} data files...", end=" ", flush=True)
 
     if db_type == "mongodb":
         # MongoDB data is at /mnt/benchmarks/mongodb_data (configured in /etc/mongod.conf)
         # Remove and recreate to ensure complete cleanup with correct SELinux context
-        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/mongodb_data/* && sudo chown -R mongod:mongod /mnt/benchmarks/mongodb_data && sudo restorecon -Rv /mnt/benchmarks/mongodb_data 2>/dev/null"
+        cleanup_cmd = "# DISABLED: sudo rm -rf /mnt/benchmarks/mongodb_data/* && sudo chown -R mongod:mongod /mnt/benchmarks/mongodb_data && sudo restorecon -Rv /mnt/benchmarks/mongodb_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     elif db_type == "oracle":
         # Oracle data is at /mnt/benchmarks/oracle_data (symlinked from /opt/oracle/oradata/FREE)
         # Remove and recreate to ensure complete cleanup
-        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/oracle_data/* && sudo mkdir -p /mnt/benchmarks/oracle_data/FREE && sudo chown -R oracle:oinstall /mnt/benchmarks/oracle_data 2>/dev/null"
+        cleanup_cmd = "# DISABLED: sudo rm -rf /mnt/benchmarks/oracle_data/* && sudo mkdir -p /mnt/benchmarks/oracle_data/FREE && sudo chown -R oracle:oinstall /mnt/benchmarks/oracle_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     print("✓ Cleaned")
