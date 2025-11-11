@@ -307,6 +307,14 @@ class ServerProfiler:
                     check=True
                 )
 
+            # Clean up out.perf immediately (can be hundreds of MB)
+            print("Cleaning up intermediate files...")
+            try:
+                os.remove(out_perf)
+                print(f"  Removed {out_perf}")
+            except Exception as e:
+                print(f"  Warning: Could not remove {out_perf}: {e}")
+
             # Step 3: flamegraph.pl out.folded > db.svg
             print("Generating flame graph SVG...")
             flamegraph_script = os.path.join(self.flamegraph_dir, "flamegraph.pl")
@@ -318,24 +326,46 @@ class ServerProfiler:
                     check=True
                 )
 
+            # Clean up out.folded immediately (can be hundreds of MB)
+            try:
+                os.remove(out_folded)
+                print(f"  Removed {out_folded}")
+            except Exception as e:
+                print(f"  Warning: Could not remove {out_folded}: {e}")
+
+            # Clean up perf.data file (no longer needed after SVG is generated)
+            try:
+                os.remove(self.perf_data_file)
+                print(f"  Removed {self.perf_data_file}")
+            except Exception as e:
+                print(f"  Warning: Could not remove {self.perf_data_file}: {e}")
+
             print(f"Flame graph generated: {out_svg}")
-
-            # Clean up intermediate files
-            for f in [out_perf, out_folded]:
-                try:
-                    os.remove(f)
-                except:
-                    pass
-
             return out_svg
 
         except subprocess.CalledProcessError as e:
             print(f"Error generating flame graph: {e}")
             if e.stderr:
                 print(f"stderr: {e.stderr.decode()}")
+            # Clean up any partial files on error
+            for f in [out_perf, out_folded, self.perf_data_file]:
+                try:
+                    if os.path.exists(f):
+                        os.remove(f)
+                        print(f"  Cleaned up partial file: {f}")
+                except:
+                    pass
             return None
         except Exception as e:
             print(f"Unexpected error: {e}")
+            # Clean up any partial files on error
+            for f in [out_perf, out_folded, self.perf_data_file]:
+                try:
+                    if os.path.exists(f):
+                        os.remove(f)
+                        print(f"  Cleaned up partial file: {f}")
+                except:
+                    pass
             return None
 
 
