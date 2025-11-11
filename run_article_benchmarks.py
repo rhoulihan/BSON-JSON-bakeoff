@@ -143,12 +143,18 @@ def stop_monitoring(monitor_proc):
         print(f"Warning: Error stopping monitor: {e}")
 
 def stop_all_databases():
-    """Stop all databases before starting."""
+    """Stop all databases before starting and clean up data files."""
     print("Stopping all databases...")
     for service in ["mongod", "postgresql-17", "oracle-free-26ai"]:
         subprocess.run(f"sudo systemctl stop {service}", shell=True, capture_output=True)
     time.sleep(2)
-    print("✓ All databases stopped\n")
+    print("✓ All databases stopped")
+
+    # Clean up database files to ensure clean start and free disk space
+    print("Cleaning database files...")
+    cleanup_database_files("mongodb")
+    cleanup_database_files("oracle")
+    print()
 
 def restart_database_with_cache_clear(service_name, db_type):
     """Restart a database and clear OS caches to eliminate warmup effects."""
@@ -244,6 +250,25 @@ def stop_database(service_name):
     subprocess.run(f"sudo systemctl stop {service_name}", shell=True, capture_output=True)
     time.sleep(2)
     print("✓ Stopped")
+
+def cleanup_database_files(db_type):
+    """Clean up database data files to free disk space after each test."""
+    print(f"  Cleaning {db_type} data files...", end=" ", flush=True)
+
+    if db_type == "mongodb":
+        # MongoDB data is at /var/lib/mongo (or symlink to /var/oled/mongodb_data)
+        # Remove all files but preserve directory structure
+        cleanup_cmd = "sudo rm -rf /var/lib/mongo/* 2>/dev/null"
+        subprocess.run(cleanup_cmd, shell=True, capture_output=True)
+
+    elif db_type == "oracle":
+        # Oracle data is at /opt/oracle/oradata/FREE (or symlink to /var/oled/oracle_data/FREE)
+        # Remove all files but preserve directory structure
+        cleanup_cmd = "sudo rm -rf /opt/oracle/oradata/FREE/* 2>/dev/null"
+        subprocess.run(cleanup_cmd, shell=True, capture_output=True)
+
+    print("✓ Cleaned")
+    time.sleep(1)
 
 def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=False, flame_graph=False, db_name="unknown", server_profile=False, db_type=None):
     """Run a single benchmark test, optionally with query tests and flame graph profiling.
@@ -451,6 +476,9 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                 # Stop database immediately after test completes
                 stop_database(db['service'])
 
+                # Clean up database files to free disk space
+                cleanup_database_files(db['db_type'])
+
     else:
         # ORIGINAL MODE: Start database once, run all tests, then stop
         current_service = None
@@ -464,6 +492,15 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                 # Stop previous database if any
                 if current_service:
                     stop_database(current_service)
+                    # Clean up previous database files
+                    if current_db_name:
+                        prev_db_type = None
+                        for prev_db in DATABASES:
+                            if prev_db['name'] == current_db_name:
+                                prev_db_type = prev_db['db_type']
+                                break
+                        if prev_db_type:
+                            cleanup_database_files(prev_db_type)
                     if track_activity and current_db_name:
                         activity_log.append({
                             "database": current_db_name,
@@ -520,6 +557,15 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         # Stop the last database
         if current_service:
             stop_database(current_service)
+            # Clean up final database files
+            if current_db_name:
+                final_db_type = None
+                for final_db in DATABASES:
+                    if final_db['name'] == current_db_name:
+                        final_db_type = final_db['db_type']
+                        break
+                if final_db_type:
+                    cleanup_database_files(final_db_type)
             if track_activity and current_db_name:
                 activity_log.append({
                     "database": current_db_name,
