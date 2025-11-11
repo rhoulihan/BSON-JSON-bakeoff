@@ -258,13 +258,13 @@ def cleanup_database_files(db_type):
     if db_type == "mongodb":
         # MongoDB data is at /mnt/benchmarks/mongodb_data (configured in /etc/mongod.conf)
         # Remove and recreate to ensure complete cleanup with correct SELinux context
-        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/mongodb_data && sudo mkdir -p /mnt/benchmarks/mongodb_data && sudo chown -R mongod:mongod /mnt/benchmarks/mongodb_data && sudo restorecon -Rv /mnt/benchmarks/mongodb_data 2>/dev/null"
+        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/mongodb_data/* && sudo chown -R mongod:mongod /mnt/benchmarks/mongodb_data && sudo restorecon -Rv /mnt/benchmarks/mongodb_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     elif db_type == "oracle":
         # Oracle data is at /mnt/benchmarks/oracle_data (symlinked from /opt/oracle/oradata/FREE)
         # Remove and recreate to ensure complete cleanup
-        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/oracle_data && sudo mkdir -p /mnt/benchmarks/oracle_data/FREE && sudo chown -R oracle:oinstall /mnt/benchmarks/oracle_data 2>/dev/null"
+        cleanup_cmd = "sudo rm -rf /mnt/benchmarks/oracle_data/* && sudo mkdir -p /mnt/benchmarks/oracle_data/FREE && sudo chown -R oracle:oinstall /mnt/benchmarks/oracle_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     print("✓ Cleaned")
