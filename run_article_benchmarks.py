@@ -263,8 +263,8 @@ def cleanup_database_files(db_type):
 
     elif db_type == "oracle":
         # Oracle data is at /opt/oracle/oradata/FREE (or symlink to /var/oled/oracle_data/FREE)
-        # Remove all files but preserve directory structure
-        cleanup_cmd = "sudo rm -rf /opt/oracle/oradata/FREE/* 2>/dev/null"
+        # Remove and recreate to ensure complete cleanup
+        cleanup_cmd = "sudo rm -rf /var/oled/oracle_data && sudo mkdir -p /var/oled/oracle_data/FREE && sudo chown -R oracle:oinstall /var/oled/oracle_data 2>/dev/null"
         subprocess.run(cleanup_cmd, shell=True, capture_output=True)
 
     print("✓ Cleaned")
