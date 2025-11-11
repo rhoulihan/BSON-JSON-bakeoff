@@ -69,52 +69,80 @@ class ServerProfiler:
             print("Error: Failed to parse mongod PID")
             return None
 
-    def find_oracle_pid(self):
-        """Find the Oracle database server process ID."""
-        # Try using opid command (Oracle-specific)
-        try:
-            result = subprocess.run(
-                ["sudo", "-u", "oracle", "bash", "-c",
-                 "export ORACLE_HOME=/opt/oracle/product/26ai/dbhomeFree && "
-                 "export PATH=$ORACLE_HOME/bin:$PATH && "
-                 "ps -ef | grep 'ora_.*_FREE' | grep -v grep | head -1 | awk '{print $2}'"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            pid_str = result.stdout.strip()
-            if pid_str and pid_str.isdigit():
-                return int(pid_str)
-        except Exception as e:
-            print(f"Error finding Oracle process with ora_ pattern: {e}")
+    def find_oracle_pids(self):
+        """
+        Find ALL Oracle dedicated server process IDs that handle queries.
+        Returns a list of PIDs instead of a single PID for comprehensive profiling.
 
-        # Alternative: find oracle process connected to FREE database
+        Oracle uses dedicated server processes (oracleFREE) to handle client connections
+        and execute SQL. PMON is just a monitoring process and doesn't show query activity.
+        """
+        # Find all oracleFREE dedicated server processes (these execute the actual queries)
         try:
             result = subprocess.run(
                 ["pgrep", "-f", "oracleFREE"],
                 capture_output=True,
-                text=True,
-                check=True
+                text=True
             )
-            pids = result.stdout.strip().split('\n')
-            if pids and pids[0]:
-                # Get the parent oracle process (not session processes)
-                # We want the main oracle process, typically ora_pmon_FREE
-                result = subprocess.run(
-                    ["pgrep", "-f", "ora_pmon_FREE"],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    return int(result.stdout.strip().split('\n')[0])
-                # Fallback to first oracleFREE process
-                return int(pids[0])
-        except subprocess.CalledProcessError:
-            print("Error: No Oracle FREE database process found")
-            return None
-        except (ValueError, IndexError):
-            print("Error: Failed to parse Oracle PID")
-            return None
+            if result.returncode == 0 and result.stdout.strip():
+                pids = [int(pid.strip()) for pid in result.stdout.strip().split('\n') if pid.strip().isdigit()]
+                if pids:
+                    print(f"Found {len(pids)} Oracle dedicated server process(es): {pids}")
+                    return pids
+        except Exception as e:
+            print(f"Error finding oracleFREE processes: {e}")
+
+        # Fallback: try to find any Oracle processes for FREE database
+        print("Warning: No dedicated server processes found, trying alternate methods...")
+
+        # Try finding by LOCAL=YES (indicates local dedicated server)
+        try:
+            result = subprocess.run(
+                ["bash", "-c", "ps -ef | grep -i 'LOCAL=YES' | grep -v grep | awk '{print $2}'"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            pids_str = result.stdout.strip().split('\n')
+            pids = [int(pid) for pid in pids_str if pid.strip().isdigit()]
+            if pids:
+                print(f"Found Oracle processes via LOCAL=YES: {pids}")
+                return pids
+        except Exception as e:
+            pass
+
+        print("Error: No Oracle dedicated server processes found")
+        print("Make sure Oracle is running and handling connections")
+        return []
+
+    def get_oracle_user(self):
+        """Get the Oracle database user (usually 'oracle')."""
+        # Try to find oracle user from running processes
+        try:
+            result = subprocess.run(
+                ["bash", "-c", "ps -eo user,comm | grep -E '(db_pmon_FREE|ora_pmon_FREE)' | head -1 | awk '{print $1}'"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            user = result.stdout.strip()
+            if user:
+                print(f"Detected Oracle user: {user}")
+                return user
+        except:
+            pass
+
+        # Default to 'oracle'
+        return "oracle"
+
+    def find_oracle_pid(self):
+        """
+        For Oracle, return special marker to indicate we should profile by user.
+        Since dedicated server processes spawn after client connection,
+        we need to profile all Oracle processes dynamically.
+        """
+        # Return special marker that signals start_profiling to use user-based profiling
+        return "PROFILE_BY_USER"
 
     def find_server_pid(self):
         """Find the appropriate server process ID based on database type."""
@@ -140,8 +168,6 @@ class ServerProfiler:
             print(f"Failed to find {self.database} server process")
             return False
 
-        print(f"Found {self.database} server process: PID {pid}")
-
         # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.perf_data_file = os.path.join(
@@ -149,17 +175,24 @@ class ServerProfiler:
             f"{self.database}_server_{timestamp}.perf.data"
         )
 
-        # Start perf recording
+        # Build perf command based on profiling mode
         # -F 99: Sample at 99 Hz
         # -g: Capture call graphs
-        # -p: Attach to process ID
-        cmd = [
-            "sudo", "perf", "record",
-            "-F", "99",
-            "-g",
-            "-p", str(pid),
-            "-o", self.perf_data_file
-        ]
+        cmd = ["sudo", "perf", "record", "-F", "99", "-g"]
+
+        if pid == "PROFILE_BY_USER":
+            # For Oracle: profile all processes owned by oracle user
+            # This catches background processes + dedicated servers as they spawn
+            oracle_user = self.get_oracle_user()
+            cmd.extend(["-u", oracle_user])
+            print(f"Profiling all processes for user: {oracle_user}")
+            print(f"  (This will capture Oracle background + dedicated server processes)")
+        else:
+            # For MongoDB: profile specific PID
+            cmd.extend(["-p", str(pid)])
+            print(f"Found {self.database} server process: PID {pid}")
+
+        cmd.extend(["-o", self.perf_data_file])
 
         print(f"Starting perf recording: {' '.join(cmd)}")
         if duration_hint:

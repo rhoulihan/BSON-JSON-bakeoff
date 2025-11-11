@@ -157,141 +157,135 @@ def generate_test_summary_html(summaries, config_key):
     return html
 
 
+def match_server_flamegraph_to_test(test, server_flamegraphs):
+    """
+    Match a server-side flame graph to a client-side test based on database and timestamp proximity.
+
+    Returns the closest matching server flame graph or None.
+    """
+    # Extract database from test
+    db_key = 'mongodb' if test['database'] == 'MongoDB BSON' else 'oracle'
+
+    # Extract timestamp from client flame graph file
+    # Format: mongodb_bson_insert_10B_1attrs_20251107_085648.html
+    client_fg_file = test['flamegraph_file']
+    timestamp_match = re.search(r'_(\d{8}_\d{6})\.html$', client_fg_file)
+
+    if not timestamp_match:
+        return None
+
+    client_timestamp = timestamp_match.group(1)
+
+    # Find server flame graphs for the same database
+    matching_server_fgs = [fg for fg in server_flamegraphs if fg['database'] == db_key]
+
+    if not matching_server_fgs:
+        return None
+
+    # Find the closest timestamp (server FG should be within 60 seconds of client FG)
+    best_match = None
+    best_diff = float('inf')
+
+    for server_fg in matching_server_fgs:
+        # Calculate time difference
+        time_diff = abs(int(client_timestamp.replace('_', '')) - int(server_fg['timestamp'].replace('_', '')))
+
+        if time_diff < best_diff and time_diff < 10000:  # Within ~100 seconds
+            best_diff = time_diff
+            best_match = server_fg
+
+    return best_match
+
+
 def generate_flamegraph_list_html(summaries, config_key):
-    """Generate HTML for flame graph list section (client-side and server-side)."""
+    """Generate unified HTML table with both client-side and server-side flame graphs."""
     html = '<div class="flamegraph-list">\n'
 
-    # CLIENT-SIDE FLAME GRAPHS SECTION
-    html += '<h3 style="color: #667eea; margin-top: 20px; margin-bottom: 15px;">📊 Client-Side Flame Graphs</h3>\n'
-    html += '<p style="margin-bottom: 20px; color: #666;">CPU profiling of the Java client application (JDBC driver, JSON serialization, networking).</p>\n'
+    html += '<h3 style="color: #667eea; margin-top: 20px; margin-bottom: 15px;">🔥 Flame Graph Analysis</h3>\n'
+    html += '<p style="margin-bottom: 20px; color: #666;">CPU profiling of both client (Java application) and server (database processes) using async-profiler and Linux perf.</p>\n'
 
     if not summaries or config_key not in summaries:
-        html += "<p>No client-side flame graph data available.</p>"
+        html += "<p>No flame graph data available.</p>"
     else:
         tests = summaries[config_key]
+        server_flamegraphs = discover_server_flamegraphs()
+
         html += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">\n'
         html += '''
         <thead>
-            <tr style="background: #667eea; color: white;">
+            <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Database</th>
                 <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Test Description</th>
                 <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Insert Rate</th>
                 <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Query Rate</th>
-                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Flame Graph</th>
+                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Client<br/>Flame Graph</th>
+                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Server<br/>Flame Graph</th>
             </tr>
         </thead>
         <tbody>
         '''
 
-    for test in tests:
-        db_color = '#667eea' if test['database'] == 'MongoDB BSON' else '#e74c3c'
-        insert_rate = test['performance']['insertion']['docs_per_sec']
-        query_rate = test['performance'].get('query', {}).get('queries_per_sec', '-')
-        query_rate_str = f"{query_rate:,}" if query_rate != '-' else '-'
+        for test in tests:
+            db_color = '#667eea' if test['database'] == 'MongoDB BSON' else '#e74c3c'
+            insert_rate = test['performance']['insertion']['docs_per_sec']
+            query_rate = test['performance'].get('query', {}).get('queries_per_sec', '-')
+            query_rate_str = f"{query_rate:,}" if query_rate != '-' else '-'
 
-        # Extract flame graph filename
-        flamegraph_file = test['flamegraph_file']
+            # Client-side flame graph
+            flamegraph_file = test['flamegraph_file']
 
-        html += f'''
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; border: 1px solid #ddd;">
-                <span style="color: {db_color}; font-weight: bold;">●</span> {test['database']}
-            </td>
-            <td style="padding: 10px; border: 1px solid #ddd;">{test['description']}</td>
-            <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-family: monospace;">
-                {insert_rate:,}
-            </td>
-            <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-family: monospace;">
-                {query_rate_str}
-            </td>
-            <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">
-                <a href="{flamegraph_file}" target="_blank"
-                   style="background: #667eea; color: white; padding: 6px 12px;
-                          border-radius: 4px; text-decoration: none; display: inline-block;">
-                    View Flame Graph
-                </a>
-            </td>
-        </tr>
-        '''
-
-        # Add analysis notes as expandable row
-        if test.get('analysis'):
-            html += f'''
-        <tr style="background: #f8f9fa;">
-            <td colspan="5" style="padding: 10px 20px; border: 1px solid #ddd; font-size: 0.9em;">
-                <strong>Analysis:</strong>
-                <ul style="margin: 5px 0; padding-left: 20px;">
-        '''
-            for note in test['analysis']:
-                html += f'            <li>{note}</li>\n'
-            html += '''
-                </ul>
-            </td>
-        </tr>
-        '''
-
-        html += '''
-        </tbody>
-        </table>
-        '''
-
-    # SERVER-SIDE FLAME GRAPHS SECTION
-    html += '<h3 style="color: #764ba2; margin-top: 40px; margin-bottom: 15px;">🔥 Server-Side Flame Graphs</h3>\n'
-    html += '<p style="margin-bottom: 20px; color: #666;">CPU profiling of database server processes (mongod, Oracle) using Linux perf.</p>\n'
-
-    server_flamegraphs = discover_server_flamegraphs()
-
-    if not server_flamegraphs:
-        html += '<p>No server-side flame graphs available. Run benchmarks with <code>--server-profile</code> to generate server flame graphs.</p>\n'
-    else:
-        html += '<table style="width: 100%; border-collapse: collapse;">\n'
-        html += '''
-        <thead>
-            <tr style="background: #764ba2; color: white;">
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Database</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Timestamp</th>
-                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">File Size</th>
-                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Flame Graph</th>
-            </tr>
-        </thead>
-        <tbody>
-        '''
-
-        for fg in server_flamegraphs:
-            db_color = '#667eea' if fg['database'] == 'mongodb' else '#e74c3c'
-            db_name = 'MongoDB' if fg['database'] == 'mongodb' else 'Oracle'
-
-            # Format timestamp for display
-            timestamp = fg['timestamp']
-            # Convert YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS
-            if len(timestamp) == 15 and '_' in timestamp:
-                date_part = timestamp[:8]
-                time_part = timestamp[9:]
-                formatted_time = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} {time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}"
-            else:
-                formatted_time = timestamp
-
-            # Format file size
-            file_size_kb = fg['file_size'] / 1024
-            size_str = f"{file_size_kb:.1f} KB"
+            # Find matching server-side flame graph
+            server_fg = match_server_flamegraph_to_test(test, server_flamegraphs)
 
             html += f'''
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px; border: 1px solid #ddd;">
-                    <span style="color: {db_color}; font-weight: bold;">●</span> {db_name}
+                    <span style="color: {db_color}; font-weight: bold;">●</span> {test['database']}
                 </td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 0.9em;">
-                    {formatted_time}
+                <td style="padding: 10px; border: 1px solid #ddd;">{test['description']}</td>
+                <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-family: monospace;">
+                    {insert_rate:,}
                 </td>
                 <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-family: monospace;">
-                    {size_str}
+                    {query_rate_str}
                 </td>
                 <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">
-                    <a href="{fg['filepath']}" target="_blank"
-                       style="background: #764ba2; color: white; padding: 6px 12px;
-                              border-radius: 4px; text-decoration: none; display: inline-block;">
-                        View Server Flame Graph
+                    <a href="{flamegraph_file}" target="_blank"
+                       style="background: #667eea; color: white; padding: 6px 12px;
+                              border-radius: 4px; text-decoration: none; display: inline-block; font-size: 0.85em;">
+                        View Client
                     </a>
+                </td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">'''
+
+            if server_fg:
+                server_path = f"server_flamegraphs/{server_fg['filename']}"
+                html += f'''
+                    <a href="{server_path}" target="_blank"
+                       style="background: #764ba2; color: white; padding: 6px 12px;
+                              border-radius: 4px; text-decoration: none; display: inline-block; font-size: 0.85em;">
+                        View Server
+                    </a>'''
+            else:
+                html += '<span style="color: #999; font-size: 0.85em;">N/A</span>'
+
+            html += '''
+                </td>
+            </tr>
+            '''
+
+            # Add analysis notes as expandable row
+            if test.get('analysis'):
+                html += f'''
+            <tr style="background: #f8f9fa;">
+                <td colspan="6" style="padding: 10px 20px; border: 1px solid #ddd; font-size: 0.9em;">
+                    <strong>Analysis:</strong>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+            '''
+                for note in test['analysis']:
+                    html += f'            <li>{note}</li>\n'
+                html += '''
+                    </ul>
                 </td>
             </tr>
             '''
@@ -299,6 +293,18 @@ def generate_flamegraph_list_html(summaries, config_key):
         html += '''
         </tbody>
         </table>
+        '''
+
+        # Add legend
+        html += '''
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px;">
+            <strong>Legend:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>Client Flame Graph:</strong> CPU profiling of the Java client application (JDBC driver, JSON serialization, networking)</li>
+                <li><strong>Server Flame Graph:</strong> CPU profiling of the database server process (mongod or Oracle) using Linux perf</li>
+                <li><strong>N/A:</strong> Server-side profiling not available for this test</li>
+            </ul>
+        </div>
         '''
 
     html += '</div>\n'

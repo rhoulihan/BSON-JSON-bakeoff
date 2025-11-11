@@ -47,12 +47,26 @@ SINGLE_ATTR_TESTS = [
     {"size": 4000, "attrs": 1, "desc": "4000B single attribute"},
 ]
 
+# Large item test configurations (enabled with --large-items flag)
+LARGE_SINGLE_ATTR_TESTS = [
+    {"size": 12000, "attrs": 1, "desc": "12KB single attribute"},
+    {"size": 120000, "attrs": 1, "desc": "120KB single attribute"},
+    {"size": 1200000, "attrs": 1, "desc": "1200KB single attribute"},
+]
+
 MULTI_ATTR_TESTS = [
     {"size": 10, "attrs": 10, "desc": "10 attributes × 1B = 10B"},
     {"size": 200, "attrs": 10, "desc": "10 attributes × 20B = 200B"},
     {"size": 1000, "attrs": 50, "desc": "50 attributes × 20B = 1000B"},
     {"size": 2000, "attrs": 100, "desc": "100 attributes × 20B = 2000B"},
     {"size": 4000, "attrs": 200, "desc": "200 attributes × 20B = 4000B"},
+]
+
+# Large multi-attribute test configurations (enabled with --large-items flag)
+LARGE_MULTI_ATTR_TESTS = [
+    {"size": 12000, "attrs": 200, "desc": "200 attributes × 60B = 12KB"},
+    {"size": 120000, "attrs": 500, "desc": "500 attributes × 240B = 120KB"},
+    {"size": 1200000, "attrs": 1000, "desc": "1000 attributes × 1200B = 1200KB"},
 ]
 
 # Databases to test - with service management info (all using indexes + realistic data)
@@ -560,8 +574,13 @@ def run_full_comparison_suite(args):
     Run complete benchmark suite: first without indexes (insert-only),
     then with indexes and queries for comprehensive comparison.
     """
-    global NUM_DOCS, NUM_RUNS, BATCH_SIZE, QUERY_LINKS, DATABASES
+    global NUM_DOCS, NUM_RUNS, BATCH_SIZE, QUERY_LINKS, DATABASES, SINGLE_ATTR_TESTS, MULTI_ATTR_TESTS
     import copy
+
+    # Add large item tests if requested
+    if args.large_items:
+        SINGLE_ATTR_TESTS = SINGLE_ATTR_TESTS + LARGE_SINGLE_ATTR_TESTS
+        MULTI_ATTR_TESTS = MULTI_ATTR_TESTS + LARGE_MULTI_ATTR_TESTS
 
     # Save original database configurations
     original_databases = copy.deepcopy(DATABASES)
@@ -581,6 +600,7 @@ def run_full_comparison_suite(args):
     print(f"Query tests: {QUERY_LINKS} links per document (indexed tests only)")
     print(f"Randomized order: {args.randomize_order}")
     print(f"Monitoring enabled: {args.monitor}")
+    print(f"Large items: {'ENABLED (12KB, 120KB, 1200KB)' if args.large_items else 'DISABLED'}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
@@ -749,6 +769,8 @@ def main():
                         help='Generate flame graphs for profiling (requires async-profiler)')
     parser.add_argument('--server-profile', action='store_true',
                         help='Generate server-side flame graphs using perf (requires FlameGraph tools and sudo)')
+    parser.add_argument('--large-items', action='store_true',
+                        help='Include large item tests (12KB, 120KB, 1200KB) in addition to standard tests')
     args = parser.parse_args()
 
     # Use command-line values
@@ -756,6 +778,13 @@ def main():
     NUM_RUNS = args.num_runs
     BATCH_SIZE = args.batch_size
     QUERY_LINKS = args.query_links
+
+    # Add large item tests if requested
+    global SINGLE_ATTR_TESTS, MULTI_ATTR_TESTS
+    if args.large_items:
+        SINGLE_ATTR_TESTS = SINGLE_ATTR_TESTS + LARGE_SINGLE_ATTR_TESTS
+        MULTI_ATTR_TESTS = MULTI_ATTR_TESTS + LARGE_MULTI_ATTR_TESTS
+        print("\n✓ Large item tests enabled (12KB, 120KB, 1200KB)")
 
     # Filter databases based on arguments (if no args, run all)
     if args.mongodb or args.oracle or args.postgresql:
@@ -824,6 +853,7 @@ def main():
         print(f"Query tests: ENABLED ({QUERY_LINKS} links per document)")
     else:
         print(f"Query tests: DISABLED (use --queries to enable)")
+    print(f"Large items: {'ENABLED (12KB, 120KB, 1200KB)' if args.large_items else 'DISABLED'}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 

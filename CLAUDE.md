@@ -47,6 +47,219 @@ python3 generate_report.py
 ```
 This runs MongoDB and Oracle JCT benchmarks (with/without search index) and creates `benchmark_report.html`.
 
+### Unified Report Generation from Benchmark Logs
+
+After running benchmarks with `--flame-graph` and `--server-profile` flags, you need to collate the test data and generate a unified HTML report.
+
+**Overview:** This process converts benchmark logs into a comprehensive HTML report with interactive charts, flame graph visualizations (both client-side Java profiling and server-side database profiling), and performance comparisons. The report is packaged with all flame graphs into a self-contained zip file that can be shared and viewed on any system with a modern browser.
+
+**Two-step process:**
+
+#### Step 1: Parse Benchmark Logs into flamegraph_summaries.json
+
+The `create_summaries_from_logs.py` script parses benchmark log files and creates `flamegraph_summaries.json`, which contains performance data for all tests.
+
+```bash
+python3 create_summaries_from_logs.py
+```
+
+**What it does:**
+- Parses log files: `local_noindex.log`, `local_indexed.log`, `remote_noindex.log`, `remote_indexed.log`
+- Detects database sections by finding `--- MongoDB (BSON) ---` and `--- Oracle JCT ---` headers
+- Extracts both insertion and query performance data:
+  - Insertion: `✓ {time}ms ({rate} docs/sec)`
+  - Query: `✓ {time}ms ({rate} docs/sec) | Query: {time}ms ({rate} queries/sec)`
+- Maps performance data to corresponding flame graph files in `flamegraphs/` directory
+- Outputs: `flamegraph_summaries.json` in project root
+
+**Expected output:**
+```
+Parsing local no-index log...
+Parsing local indexed log...
+Parsing remote no-index log...
+Parsing remote indexed log...
+
+Generated summaries:
+  local_noindex: 10 tests
+  local_indexed: 10 tests
+  remote_noindex: 10 tests
+  remote_indexed: 10 tests
+
+✅ Saved flamegraph_summaries.json
+   Total tests: 40 tests
+```
+
+**Important notes:**
+- The script saves `flamegraph_summaries.json` to the project root (where `create_summaries_from_logs.py` is located)
+- It automatically matches flame graph files using pattern: `{database}_{test_type}_{size}B_{attrs}attrs_{timestamp}.html`
+- Database sections in logs must be properly formatted with `--- MongoDB (BSON) ---` and `--- Oracle JCT ---` headers
+
+#### Step 2: Generate Unified HTML Report
+
+The `generate_unified_report.py` script (located in `report/` directory) creates a comprehensive HTML report with interactive charts, flame graph links, and executive summary.
+
+```bash
+# Copy flamegraph_summaries.json to report/ directory
+cp flamegraph_summaries.json report/
+
+# Generate the report
+cd report && python3 generate_unified_report.py
+```
+
+**What it does:**
+- Loads `flamegraph_summaries.json` from the current directory
+- Converts flame graph data to benchmark format for charts
+- Generates query performance and insertion performance charts
+- Creates unified flame graph table with both client-side and server-side columns
+- Matches server flame graphs to client tests based on timestamp proximity
+- Outputs:
+  - `unified_benchmark_report.html` (standalone HTML report)
+  - `benchmark_report_package.zip` (distributable archive with all flame graphs)
+
+**Expected output:**
+```
+=== Unified Benchmark Report Generator ===
+
+Step 1: Loading flame graph summaries...
+Step 2: Converting flame graph data to benchmark format...
+Step 3: Loading flame graph HTML sections...
+Step 4: Generating unified HTML report...
+
+✅ Unified report generated: unified_benchmark_report.html
+   Open in browser: file:///path/to/unified_benchmark_report.html
+
+Step 5: Creating distributable archive...
+  Adding unified_benchmark_report.html...
+  Adding 60 client-side flame graph files...
+  Adding 55 server-side flame graph files...
+  Adding README.txt...
+  Archive created: benchmark_report_package.zip (2.47 MB)
+```
+
+#### Complete Workflow Example
+
+```bash
+# 1. Run benchmarks (both systems, with flame graphs and server profiling)
+timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle \
+  --flame-graph --server-profile --monitor > local_noindex.log 2>&1 &
+
+timeout 1800 python3 run_article_benchmarks.py --queries --nostats --mongodb --oracle \
+  --flame-graph --server-profile --monitor > local_indexed.log 2>&1 &
+
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py \
+  --no-index --nostats --mongodb --oracle --flame-graph --server-profile --monitor \
+  > remote_noindex.log 2>&1 &"
+
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py \
+  --queries --nostats --mongodb --oracle --flame-graph --server-profile --monitor \
+  > remote_indexed.log 2>&1 &"
+
+# 2. Wait for completion, then copy remote logs to local system
+scp oci-opc:BSON-JSON-bakeoff/remote_noindex.log ./
+scp oci-opc:BSON-JSON-bakeoff/remote_indexed.log ./
+
+# 3. Parse logs to create flamegraph_summaries.json
+python3 create_summaries_from_logs.py
+
+# 4. Generate unified report
+cp flamegraph_summaries.json report/
+cd report && python3 generate_unified_report.py
+
+# 5. View the report
+cd .. && firefox unified_benchmark_report.html
+```
+
+#### Troubleshooting
+
+**Problem:** MongoDB and Oracle showing identical data in tables/charts
+
+**Cause:** The log parser uses test descriptions as dictionary keys, but both databases have the same descriptions (e.g., "10B single attribute"). The parser must track which database section it's in.
+
+**Solution:** The current `create_summaries_from_logs.py` correctly tracks database sections by detecting headers. If you modify the parser, ensure it:
+1. Detects `--- MongoDB (BSON) ---` and `--- Oracle JCT ---` section headers
+2. Returns separate dictionaries: `{'mongodb': {...}, 'oracle': {...}}`
+3. Passes the correct database data when mapping to flame graphs
+
+**Problem:** No query performance data in charts
+
+**Cause:** The parser only matches insertion results, not query results.
+
+**Solution:** The parser must try to match both patterns:
+1. First: `✓ {time}ms ({rate} docs/sec) | Query: {time}ms ({rate} queries/sec)`
+2. Fallback: `✓ {time}ms ({rate} docs/sec)`
+
+**Problem:** Report generator can't find flamegraph_summaries.json
+
+**Cause:** The file is in project root, but `generate_unified_report.py` expects it in `report/` directory.
+
+**Solution:** Copy the file: `cp flamegraph_summaries.json report/`
+
+**Problem:** Flame graph links broken in distributable package (benchmark_report_package.zip)
+
+**Cause:** The HTML report was added to the zip with its full absolute path instead of just the filename, breaking relative paths to flame graph files.
+
+**Solution:** The fix is already in `report/generate_unified_report.py` (line 572-575). The report generator now uses `Path(report_file).name` to extract just the filename before adding to the zip. If you see this issue, regenerate the report package:
+```bash
+cd report && python3 generate_unified_report.py
+```
+
+**Verify the fix:** Extract the zip and check structure:
+```bash
+unzip -l benchmark_report_package.zip | head -10
+# Should show: unified_benchmark_report.html at zip root (not nested in directories)
+#              flamegraphs/ directory with HTML files
+#              server_flamegraphs/ directory with SVG files
+```
+
+#### Distributable Package Structure
+
+When you extract `benchmark_report_package.zip`, you get a self-contained package:
+
+```
+extracted_folder/
+├── unified_benchmark_report.html    # Main report (open this in browser)
+├── flamegraphs/                     # 60+ client-side flame graphs (HTML)
+│   ├── mongodb_bson_query_10B_1attrs_20251107_090420.html
+│   └── ...
+├── server_flamegraphs/              # 55+ server-side flame graphs (SVG)
+│   ├── mongodb_server_20251107_090418.svg
+│   └── ...
+└── README.txt                       # Instructions for viewing
+```
+
+All flame graph links use relative paths (`flamegraphs/...` and `server_flamegraphs/...`), so the package works on any system with a modern browser.
+
+#### File Locations Reference
+
+```
+BSON-JSON-bakeoff/
+├── create_summaries_from_logs.py       # Parser script (project root)
+├── flamegraph_summaries.json           # Generated by parser (project root)
+├── local_noindex.log                   # Benchmark log
+├── local_indexed.log                   # Benchmark log
+├── remote_noindex.log                  # Benchmark log (copied from remote)
+├── remote_indexed.log                  # Benchmark log (copied from remote)
+├── unified_benchmark_report.html       # Generated report (project root)
+├── benchmark_report_package.zip        # Distributable archive
+├── flamegraphs/                        # Client-side flame graphs (HTML)
+│   ├── mongodb_bson_insert_10B_1attrs_20251107_085520.html
+│   ├── oracle_jct_query_200B_1attrs_20251107_090541.html
+│   └── ...
+├── server_flamegraphs/                 # Server-side flame graphs (SVG)
+│   ├── mongodb_server_20251107_085646.svg
+│   ├── oracle_server_20251107_085736.svg
+│   └── ...
+└── report/
+    ├── generate_unified_report.py      # Report generator
+    ├── flamegraph_summaries.json       # Copy of summaries (needed here)
+    ├── flamegraph_report_helper.py     # Helper for flame graph sections
+    └── report_modules/
+        ├── benchmark_formatter.py      # Table formatting
+        ├── chart_generator.py          # SVG chart generation
+        ├── executive_summary.py        # Summary generation
+        └── flamegraph_to_benchmark_converter.py  # Data conversion
+```
+
 ### System Resource Monitoring
 
 Enable system resource monitoring during benchmarks:

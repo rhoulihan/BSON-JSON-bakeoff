@@ -34,6 +34,10 @@ def generate_report_html(data, fg_sections, fg_summaries):
     remote_idx = data['remote_indexed']
     remote_noidx = data['remote_noindex']
 
+    # Check if we have data for each system
+    has_local_data = bool(local_idx or local_noidx)
+    has_remote_data = bool(remote_idx or remote_noidx)
+
     # Extract flame graph sections
     local_idx_summary, local_idx_flamegraphs = fg_sections['local_indexed']
     local_noidx_summary, local_noidx_flamegraphs = fg_sections['local_noindex']
@@ -47,6 +51,173 @@ def generate_report_html(data, fg_sections, fg_summaries):
         'remote_indexed': remote_idx,
         'remote_noindex': remote_noidx
     }, fg_summaries)
+
+    # Build tab buttons
+    tab_buttons = '''<button class="tab active" onclick="openTab(event, 'overview')">Executive Summary</button>'''
+    if has_local_data:
+        tab_buttons += '''<button class="tab" onclick="openTab(event, 'local')">Local System</button>'''
+    if has_remote_data:
+        tab_buttons += '''<button class="tab" onclick="openTab(event, 'remote')">Remote System</button>'''
+
+    # Build local system tab content
+    local_tab_content = ""
+    if has_local_data:
+        local_tab_content = f'''
+        <!-- LOCAL SYSTEM TAB -->
+        <div id="local" class="tab-content">
+            <div class="subtabs">
+                <button class="subtab active" onclick="openSubTab(event, 'local', 'local-indexed')">Indexed (with Queries)</button>
+                <button class="subtab" onclick="openSubTab(event, 'local', 'local-noindex')">No Index (Insert Only)</button>
+            </div>
+
+            <!-- LOCAL INDEXED SUBTAB -->
+            <div id="local-indexed" class="subtab-content active">
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {generate_query_performance_chart(local_idx, "Query Performance - Local System (Indexed)")}
+                        {generate_insertion_performance_chart(local_idx, "Insertion Performance - Local System (Indexed)")}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {format_benchmark_table(local_idx, 'indexed')}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {local_idx_flamegraphs}
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOCAL NO INDEX SUBTAB -->
+            <div id="local-noindex" class="subtab-content">
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {generate_insertion_performance_chart(local_noidx, "Insertion Performance - Local System (No Index)")}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {format_benchmark_table(local_noidx, 'noindex')}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {local_noidx_flamegraphs}
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
+
+    # Build remote system tab content
+    remote_tab_content = ""
+    if has_remote_data:
+        remote_tab_content = f'''
+        <!-- REMOTE SYSTEM TAB -->
+        <div id="remote" class="tab-content">
+            <div class="subtabs">
+                <button class="subtab active" onclick="openSubTab(event, 'remote', 'remote-indexed')">Indexed (with Queries)</button>
+                <button class="subtab" onclick="openSubTab(event, 'remote', 'remote-noindex')">No Index (Insert Only)</button>
+            </div>
+
+            <!-- REMOTE INDEXED SUBTAB -->
+            <div id="remote-indexed" class="subtab-content active">
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {generate_query_performance_chart(remote_idx, "Query Performance - Remote System (Indexed)")}
+                        {generate_insertion_performance_chart(remote_idx, "Insertion Performance - Remote System (Indexed)")}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {format_benchmark_table(remote_idx, 'indexed')}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {remote_idx_flamegraphs}
+                    </div>
+                </div>
+            </div>
+
+            <!-- REMOTE NO INDEX SUBTAB -->
+            <div id="remote-noindex" class="subtab-content">
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {generate_insertion_performance_chart(remote_noidx, "Insertion Performance - Remote System (No Index)")}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {format_benchmark_table(remote_noidx, 'noindex')}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        {remote_noidx_flamegraphs}
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -310,9 +481,7 @@ def generate_report_html(data, fg_sections, fg_summaries):
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="openTab(event, 'overview')">Executive Summary</button>
-            <button class="tab" onclick="openTab(event, 'local')">Local System</button>
-            <button class="tab" onclick="openTab(event, 'remote')">Remote System</button>
+            {tab_buttons}
         </div>
 
         <!-- OVERVIEW TAB -->
@@ -320,135 +489,9 @@ def generate_report_html(data, fg_sections, fg_summaries):
             {exec_summary}
         </div>
 
-        <!-- LOCAL SYSTEM TAB -->
-        <div id="local" class="tab-content">
-            <div class="subtabs">
-                <button class="subtab active" onclick="openSubTab(event, 'local', 'local-indexed')">Indexed (with Queries)</button>
-                <button class="subtab" onclick="openSubTab(event, 'local', 'local-noindex')">No Index (Insert Only)</button>
-            </div>
+        {local_tab_content}
 
-            <!-- LOCAL INDEXED SUBTAB -->
-            <div id="local-indexed" class="subtab-content active">
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {generate_query_performance_chart(local_idx, "Query Performance - Local System (Indexed)")}
-                        {generate_insertion_performance_chart(local_idx, "Insertion Performance - Local System (Indexed)")}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {format_benchmark_table(local_idx, 'indexed')}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {local_idx_flamegraphs}
-                    </div>
-                </div>
-            </div>
-
-            <!-- LOCAL NO INDEX SUBTAB -->
-            <div id="local-noindex" class="subtab-content">
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {format_benchmark_table(local_noidx, 'noindex')}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {local_noidx_flamegraphs}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- REMOTE SYSTEM TAB -->
-        <div id="remote" class="tab-content">
-            <div class="subtabs">
-                <button class="subtab active" onclick="openSubTab(event, 'remote', 'remote-indexed')">Indexed (with Queries)</button>
-                <button class="subtab" onclick="openSubTab(event, 'remote', 'remote-noindex')">No Index (Insert Only)</button>
-            </div>
-
-            <!-- REMOTE INDEXED SUBTAB -->
-            <div id="remote-indexed" class="subtab-content active">
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Test Results</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {generate_query_performance_chart(remote_idx, "Query Performance - Remote System (Indexed)")}
-                        {generate_insertion_performance_chart(remote_idx, "Insertion Performance - Remote System (Indexed)")}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {format_benchmark_table(remote_idx, 'indexed')}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {remote_idx_flamegraphs}
-                    </div>
-                </div>
-            </div>
-
-            <!-- REMOTE NO INDEX SUBTAB -->
-            <div id="remote-noindex" class="subtab-content">
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Raw Data</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {format_benchmark_table(remote_noidx, 'noindex')}
-                    </div>
-                </div>
-
-                <div class="collapsible-section">
-                    <div class="collapsible-header" onclick="toggleSection(this)">
-                        <h2 style="margin: 0; padding: 0; border: none;">Flame Graphs</h2>
-                        <span class="collapse-icon">▼</span>
-                    </div>
-                    <div class="collapsible-content">
-                        {remote_noidx_flamegraphs}
-                    </div>
-                </div>
-            </div>
-        </div>
+        {remote_tab_content}
 
     </div>
 
@@ -569,9 +612,10 @@ Generated: """ + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n"
     archive_path = Path(archive_name)
 
     with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Add the main report
-        print(f"  Adding {report_file}...")
-        zipf.write(report_file, arcname=report_file)
+        # Add the main report (use just the filename, not full path)
+        report_filename = Path(report_file).name
+        print(f"  Adding {report_filename}...")
+        zipf.write(report_file, arcname=report_filename)
 
         # Add all client-side flamegraph HTML files
         flamegraphs_path = Path(flamegraphs_dir)
