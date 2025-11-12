@@ -169,6 +169,11 @@ def match_server_flamegraph_to_test(test, server_flamegraphs):
     # Extract timestamp from client flame graph file
     # Format: mongodb_bson_insert_10B_1attrs_20251107_085648.html
     client_fg_file = test['flamegraph_file']
+
+    # Handle case where flame graph file doesn't exist
+    if not client_fg_file:
+        return None
+
     timestamp_match = re.search(r'_(\d{8}_\d{6})\.html$', client_fg_file)
 
     if not timestamp_match:

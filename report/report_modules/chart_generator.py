@@ -83,11 +83,18 @@ def generate_chart(mongo_points, oracle_points, title, y_axis_label, value_forma
     min_x, max_x = min(all_x_positions), max(all_x_positions)
     min_y, max_y = 0, max(all_y_values) * 1.15
 
-    # Scale functions
+    # Scale functions (logarithmic for x-axis to spread out data points)
+    import math
+
     def scale_x(x_pos):
         if max_x == min_x:
             return padding_left + chart_width / 2
-        return padding_left + (x_pos - min_x) / (max_x - min_x) * chart_width
+        # Use logarithmic scale for better visualization of exponential data
+        # Add 1 to avoid log(0)
+        log_min = math.log10(min_x + 1)
+        log_max = math.log10(max_x + 1)
+        log_pos = math.log10(x_pos + 1)
+        return padding_left + (log_pos - log_min) / (log_max - log_min) * chart_width
 
     def scale_y(y_val):
         if max_y == 0:

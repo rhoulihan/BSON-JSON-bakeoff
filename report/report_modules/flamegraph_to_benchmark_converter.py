@@ -34,22 +34,39 @@ def convert_flamegraph_to_benchmark_format(fg_tests):
         attrs = 1
 
         if 'single attribute' in desc:
-            # Format: "10B single attribute" or "200B single attribute"
+            # Format: "10B single attribute", "10KB single attribute", "100KB single attribute"
             parts = desc.split()
             if parts:
-                size_str = parts[0].replace('B', '')
+                size_str = parts[0]
                 try:
-                    size = int(size_str)
+                    if size_str.endswith('KB'):
+                        size = int(size_str.replace('KB', '')) * 1000
+                    elif size_str.endswith('MB'):
+                        size = int(size_str.replace('MB', '')) * 1000000
+                    elif size_str.endswith('B'):
+                        size = int(size_str.replace('B', ''))
                 except ValueError:
                     pass
         elif '×' in desc:
-            # Format: "10 attributes × 1B = 10B"
+            # Format: "10 attributes × 1B = 10B", "200 attributes × 50B = 10KB"
             parts = desc.split()
             if len(parts) >= 5:
                 try:
                     attrs = int(parts[0])
-                    size_per_attr = int(parts[3].replace('B', ''))
-                    size = int(parts[5].replace('B', ''))
+                    # Parse size_per_attr (parts[3])
+                    size_per_str = parts[3]
+                    if size_per_str.endswith('KB'):
+                        size_per_attr = int(size_per_str.replace('KB', '')) * 1000
+                    elif size_per_str.endswith('B'):
+                        size_per_attr = int(size_per_str.replace('B', ''))
+                    # Parse total size (parts[5])
+                    size_str = parts[5]
+                    if size_str.endswith('KB'):
+                        size = int(size_str.replace('KB', '')) * 1000
+                    elif size_str.endswith('MB'):
+                        size = int(size_str.replace('MB', '')) * 1000000
+                    elif size_str.endswith('B'):
+                        size = int(size_str.replace('B', ''))
                 except (ValueError, IndexError):
                     pass
 

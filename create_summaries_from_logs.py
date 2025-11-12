@@ -109,13 +109,23 @@ def map_log_results_to_flamegraphs(log_results, flamegraph_dir, database, test_t
         # Description format: "10B single attribute", "200B 10 attributes", etc.
 
         # Extract size and attr count from description
-        size_match = re.search(r'(\d+)B', description)
+        # Match formats like: 10B, 200B, 10KB, 100KB, 1000KB
+        size_match = re.search(r'(\d+)([KM]?B)', description)
         attr_match = re.search(r'(\d+)\s+attributes?|single attribute', description)
 
         if not size_match:
             continue
 
-        size = size_match.group(1)
+        # Convert size to bytes for flame graph matching
+        size_val = int(size_match.group(1))
+        size_unit = size_match.group(2)
+
+        if size_unit == 'KB':
+            size = str(size_val * 1000)  # Convert KB to bytes
+        elif size_unit == 'MB':
+            size = str(size_val * 1000000)  # Convert MB to bytes
+        else:
+            size = str(size_val)  # Already in bytes
 
         if 'single attribute' in description:
             attrs = '1'
@@ -124,41 +134,40 @@ def map_log_results_to_flamegraphs(log_results, flamegraph_dir, database, test_t
         else:
             attrs = '1'
 
-        # Find matching flame graph
+        # Find matching flame graph (optional)
         fg_match_pattern = f"{database}_{test_type}_{size}B_{attrs}attrs_"
         matching_fg = [fg for fg in fg_files if fg_match_pattern in fg.name]
 
-        if matching_fg:
-            fg_file = matching_fg[0]  # Use first match
+        fg_file = matching_fg[0] if matching_fg else None
 
-            # Build performance section
-            performance = {
-                'insertion': {
-                    'time_ms': perf_data['time_ms'],
-                    'docs_per_sec': perf_data['docs_per_sec']
-                }
+        # Build performance section
+        performance = {
+            'insertion': {
+                'time_ms': perf_data['time_ms'],
+                'docs_per_sec': perf_data['docs_per_sec']
+            }
+        }
+
+        # Add query data if present
+        if 'query_time_ms' in perf_data and 'queries_per_sec' in perf_data:
+            performance['query'] = {
+                'time_ms': perf_data['query_time_ms'],
+                'queries_per_sec': perf_data['queries_per_sec']
             }
 
-            # Add query data if present
-            if 'query_time_ms' in perf_data and 'queries_per_sec' in perf_data:
-                performance['query'] = {
-                    'time_ms': perf_data['query_time_ms'],
-                    'queries_per_sec': perf_data['queries_per_sec']
-                }
+        test_entry = {
+            'system': system,
+            'database': 'MongoDB BSON' if database == 'mongodb_bson' else 'Oracle JCT',
+            'test_type': 'No Index' if test_type == 'insert' else 'Indexed with Queries',
+            'description': description,
+            'flamegraph_file': str(fg_file) if fg_file else None,
+            'performance': performance,
+            'analysis': [
+                f"{'MongoDB' if database == 'mongodb_bson' else 'Oracle'} insertion achieved {perf_data['docs_per_sec']:,} docs/sec ({perf_data['time_ms']}ms for 10K documents)."
+            ]
+        }
 
-            test_entry = {
-                'system': system,
-                'database': 'MongoDB BSON' if database == 'mongodb_bson' else 'Oracle JCT',
-                'test_type': 'No Index' if test_type == 'insert' else 'Indexed with Queries',
-                'description': description,
-                'flamegraph_file': str(fg_file),
-                'performance': performance,
-                'analysis': [
-                    f"{'MongoDB' if database == 'mongodb_bson' else 'Oracle'} insertion achieved {perf_data['docs_per_sec']:,} docs/sec ({perf_data['time_ms']}ms for 10K documents)."
-                ]
-            }
-
-            tests.append(test_entry)
+        tests.append(test_entry)
 
     return tests
 
