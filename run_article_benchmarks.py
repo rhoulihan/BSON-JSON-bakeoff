@@ -685,7 +685,7 @@ def run_full_comparison_suite(args):
     print(f"Query tests: {QUERY_LINKS} links per document (indexed tests only)")
     print(f"Randomized order: {args.randomize_order}")
     print(f"Monitoring enabled: {args.monitor}")
-    print(f"Large items: {'ENABLED (12KB, 120KB, 1200KB)' if args.large_items else 'DISABLED'}")
+    print(f"Large items: {'ENABLED (10KB, 100KB, 1000KB)' if args.large_items else 'DISABLED'}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
@@ -855,7 +855,7 @@ def main():
     parser.add_argument('--server-profile', action='store_true',
                         help='Generate server-side flame graphs using perf (requires FlameGraph tools and sudo)')
     parser.add_argument('--large-items', action='store_true',
-                        help='Include large item tests (12KB, 120KB, 1200KB) in addition to standard tests')
+                        help='Include large item tests (10KB, 100KB, 1000KB) in addition to standard tests')
     args = parser.parse_args()
 
     # Use command-line values
@@ -869,7 +869,7 @@ def main():
     if args.large_items:
         SINGLE_ATTR_TESTS = SINGLE_ATTR_TESTS + LARGE_SINGLE_ATTR_TESTS
         MULTI_ATTR_TESTS = MULTI_ATTR_TESTS + LARGE_MULTI_ATTR_TESTS
-        print("\n✓ Large item tests enabled (12KB, 120KB, 1200KB)")
+        print("\n✓ Large item tests enabled (10KB, 100KB, 1000KB)")
 
     # Filter databases based on arguments (if no args, run all)
     if args.mongodb or args.oracle or args.postgresql:
@@ -938,7 +938,7 @@ def main():
         print(f"Query tests: ENABLED ({QUERY_LINKS} links per document)")
     else:
         print(f"Query tests: DISABLED (use --queries to enable)")
-    print(f"Large items: {'ENABLED (12KB, 120KB, 1200KB)' if args.large_items else 'DISABLED'}")
+    print(f"Large items: {'ENABLED (10KB, 100KB, 1000KB)' if args.large_items else 'DISABLED'}")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
