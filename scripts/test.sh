@@ -1,3 +1,8 @@
+#!/bin/bash
+# Get the project root (parent of scripts directory)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
 [ -f ./target/insertTest-1.0-jar-with-dependencies.jar ] ||
  mvn clean package
 

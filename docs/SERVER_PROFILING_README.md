@@ -59,16 +59,16 @@ Use `profile_server.py` to profile a database server directly:
 
 ```bash
 # Profile MongoDB for 10 seconds
-python3 profile_server.py mongodb --duration 10
+python3 scripts/profile_server.py mongodb --duration 10
 
 # Profile Oracle for 30 seconds
-python3 profile_server.py oracle --duration 30
+python3 scripts/profile_server.py oracle --duration 30
 
 # Custom output directory
-python3 profile_server.py mongodb --duration 15 --output-dir my_profiles/
+python3 scripts/profile_server.py mongodb --duration 15 --output-dir my_profiles/
 
 # Interactive mode (Ctrl+C to stop)
-python3 profile_server.py oracle
+python3 scripts/profile_server.py oracle
 ```
 
 **Output:**
@@ -82,15 +82,15 @@ Add `--server-profile` flag to `run_article_benchmarks.py`:
 
 ```bash
 # Profile both client and server during benchmarks
-python3 run_article_benchmarks.py --queries --mongodb --oracle \
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle \
   --flame-graph --server-profile
 
 # Profile only server side (no client profiling)
-python3 run_article_benchmarks.py --queries --mongodb --server-profile
+python3 scripts/run_article_benchmarks.py --queries --mongodb --server-profile
 
 # Profile on remote system
 ssh oci-opc "cd BSON-JSON-bakeoff && \
-  python3 run_article_benchmarks.py --queries --mongodb --oracle \
+  python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle \
   --server-profile > remote_benchmark.log 2>&1 &"
 ```
 
@@ -212,7 +212,7 @@ ps -ef | grep ora_pmon_FREE
 Perf requires sudo privileges:
 ```bash
 # Run with sudo (script handles this internally)
-python3 profile_server.py mongodb --duration 10
+python3 scripts/profile_server.py mongodb --duration 10
 ```
 
 Alternatively, adjust perf_event_paranoid:
@@ -259,7 +259,7 @@ sudo sysctl kernel.perf_event_paranoid=1
 
 ```bash
 # Run comprehensive benchmark with server profiling
-python3 run_article_benchmarks.py \
+python3 scripts/run_article_benchmarks.py \
   --queries \
   --mongodb \
   --oracle \
@@ -301,7 +301,7 @@ scp profile_server.py run_article_benchmarks.py oci-opc:BSON-JSON-bakeoff/
 
 # Run benchmarks with server profiling
 ssh oci-opc "cd BSON-JSON-bakeoff && \
-  timeout 1800 python3 run_article_benchmarks.py \
+  timeout 1800 python3 scripts/run_article_benchmarks.py \
     --queries --mongodb --oracle --server-profile \
     > remote_benchmark_with_profiling.log 2>&1 &"
 
@@ -347,11 +347,11 @@ def find_oracle_pid(self):
 
 ```bash
 # Run 1: No indexes
-python3 run_article_benchmarks.py --no-index --mongodb --server-profile
+python3 scripts/run_article_benchmarks.py --no-index --mongodb --server-profile
 mv server_flamegraphs server_flamegraphs_noindex
 
 # Run 2: With indexes
-python3 run_article_benchmarks.py --queries --mongodb --server-profile
+python3 scripts/run_article_benchmarks.py --queries --mongodb --server-profile
 mv server_flamegraphs server_flamegraphs_indexed
 
 # Compare flame graphs side-by-side

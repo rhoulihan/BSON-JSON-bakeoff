@@ -65,7 +65,7 @@ Based on the user's answers:
    - Note: Realistic data (`-rd`) is automatically enabled by run_article_benchmarks.py
 
 2. **Generate appropriate command(s):**
-   - For remote system: `ssh oci-opc "cd BSON-JSON-bakeoff && nohup bash -c 'timeout 1800 python3 run_article_benchmarks.py [FLAGS] 2>&1' > ~/remote_benchmark.log 2>&1 &"`
+   - For remote system: `ssh oci-opc "cd BSON-JSON-bakeoff && nohup bash -c 'timeout 1800 python3 scripts/run_article_benchmarks.py [FLAGS] 2>&1' > ~/remote_benchmark.log 2>&1 &"`
    - For local system: Similar command without SSH
    - For both phases: Chain with `&&` between no-index and queries phases
 

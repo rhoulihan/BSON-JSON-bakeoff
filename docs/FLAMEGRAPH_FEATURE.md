@@ -36,16 +36,16 @@ Added flame graph generation capability to the benchmark suite using async-profi
 ### Initial Setup (one-time):
 ```bash
 chmod +x setup_async_profiler.sh
-./setup_async_profiler.sh
+./scripts/setup_async_profiler.sh
 ```
 
 ### Running Benchmarks with Flame Graphs:
 ```bash
 # Basic usage - MongoDB and Oracle with queries
-python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
 
 # Combined with other options
-python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph --monitor --nostats
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --flame-graph --monitor --nostats
 ```
 
 ### Output Location:
@@ -115,10 +115,10 @@ The implementation gracefully handles missing async-profiler:
 
 ```bash
 # 1. Install async-profiler (one-time)
-./setup_async_profiler.sh
+./scripts/setup_async_profiler.sh
 
 # 2. Run benchmarks with profiling
-python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph --num-docs 10000
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --flame-graph --num-docs 10000
 
 # 3. Open flame graphs in browser
 firefox flamegraphs/mongodb_bson_insert_200B_10attrs_*.html

@@ -93,7 +93,7 @@ Main benchmark script that runs:
 
 Usage:
 ```bash
-python3 run_article_benchmarks.py
+python3 scripts/run_article_benchmarks.py
 ```
 
 ### **generate_html_report.py**
@@ -226,7 +226,7 @@ Config          MongoDB      Oracle JCT   PG-JSON      PG-JSONB
 ### For Reproducing Tests
 1. Review test script: `run_article_benchmarks.py`
 2. Check configurations in source code
-3. Run tests with: `python3 run_article_benchmarks.py`
+3. Run tests with: `python3 scripts/run_article_benchmarks.py`
 4. Compare results with JSON files
 5. Generate new report with: `python3 generate_html_report.py`
 

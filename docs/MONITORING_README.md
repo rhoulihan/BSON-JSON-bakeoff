@@ -35,13 +35,13 @@ Add the `--monitor` flag to any benchmark command:
 
 ```bash
 # Basic benchmark with monitoring
-python3 run_article_benchmarks.py --mongodb --oracle --queries --monitor
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --queries --monitor
 
 # Custom monitoring interval (default: 5 seconds)
-python3 run_article_benchmarks.py --mongodb --queries --monitor --monitor-interval 3
+python3 scripts/run_article_benchmarks.py --mongodb --queries --monitor --monitor-interval 3
 
 # Full comparison with monitoring
-python3 run_article_benchmarks.py --full-comparison --monitor
+python3 scripts/run_article_benchmarks.py --full-comparison --monitor
 ```
 
 ### Standalone Monitoring
@@ -50,10 +50,10 @@ Run the monitor independently for custom scenarios:
 
 ```bash
 # Monitor for 60 seconds with 5-second intervals
-timeout 60 python3 monitor_resources.py --interval 5 --output my_metrics.json
+timeout 60 python3 scripts/monitor_resources.py --interval 5 --output my_metrics.json
 
 # Monitor indefinitely (Ctrl+C to stop)
-python3 monitor_resources.py --interval 10 --output system_metrics.json
+python3 scripts/monitor_resources.py --interval 10 --output system_metrics.json
 ```
 
 ## Output Format
@@ -165,7 +165,7 @@ jq '.resource_monitoring.metrics[].disk.sda.total_iops' article_benchmark_result
 
 ```bash
 # Run benchmark with monitoring
-python3 run_article_benchmarks.py --mongodb --oracle --queries --monitor
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --queries --monitor
 
 # Extract CPU utilization for each database test
 jq '.resource_monitoring.metrics[] | {timestamp, cpu: .cpu.total}' article_benchmark_results.json
@@ -255,10 +255,10 @@ The monitoring feature has been documented in the main project CLAUDE.md. To use
 
 ```bash
 # Standard article benchmark with monitoring
-python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor
 
 # With custom interval
-python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor --monitor-interval 3
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor --monitor-interval 3
 ```
 
 ## Files

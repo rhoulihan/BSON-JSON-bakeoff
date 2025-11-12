@@ -60,7 +60,7 @@ After running benchmarks with `--flame-graph` and `--server-profile` flags, you 
 The `create_summaries_from_logs.py` script parses benchmark log files and creates `flamegraph_summaries.json`, which contains performance data for all tests.
 
 ```bash
-python3 create_summaries_from_logs.py
+python3 scripts/create_summaries_from_logs.py
 ```
 
 **What it does:**
@@ -140,17 +140,17 @@ Step 5: Creating distributable archive...
 
 ```bash
 # 1. Run benchmarks (both systems, with flame graphs and server profiling)
-timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle \
+timeout 1800 python3 scripts/run_article_benchmarks.py --no-index --nostats --mongodb --oracle \
   --flame-graph --server-profile --monitor > local_noindex.log 2>&1 &
 
-timeout 1800 python3 run_article_benchmarks.py --queries --nostats --mongodb --oracle \
+timeout 1800 python3 scripts/run_article_benchmarks.py --queries --nostats --mongodb --oracle \
   --flame-graph --server-profile --monitor > local_indexed.log 2>&1 &
 
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py \
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py \
   --no-index --nostats --mongodb --oracle --flame-graph --server-profile --monitor \
   > remote_noindex.log 2>&1 &"
 
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py \
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py \
   --queries --nostats --mongodb --oracle --flame-graph --server-profile --monitor \
   > remote_indexed.log 2>&1 &"
 
@@ -159,7 +159,7 @@ scp oci-opc:BSON-JSON-bakeoff/remote_noindex.log ./
 scp oci-opc:BSON-JSON-bakeoff/remote_indexed.log ./
 
 # 3. Parse logs to create flamegraph_summaries.json
-python3 create_summaries_from_logs.py
+python3 scripts/create_summaries_from_logs.py
 
 # 4. Generate unified report
 cp flamegraph_summaries.json report/
@@ -265,13 +265,13 @@ BSON-JSON-bakeoff/
 Enable system resource monitoring during benchmarks:
 ```bash
 # Run with resource monitoring (CPU, disk, network every 5 seconds)
-python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor
 
 # Custom monitoring interval
-python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor --monitor-interval 3
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor --monitor-interval 3
 
 # Standalone monitoring (for custom scenarios)
-python3 monitor_resources.py --interval 5 --output metrics.json
+python3 scripts/monitor_resources.py --interval 5 --output metrics.json
 ```
 
 See `MONITORING_README.md` for detailed documentation on resource monitoring features, output format, and analysis examples.
@@ -284,10 +284,10 @@ Generate flame graphs to visualize CPU usage and identify performance bottleneck
 
 ```bash
 # Setup async-profiler (one-time setup)
-./setup_async_profiler.sh
+./scripts/setup_async_profiler.sh
 
 # Run benchmarks with client-side flame graph profiling
-python3 run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --flame-graph
 
 # Flame graphs saved in flamegraphs/ directory
 # Files: {database}_{test_type}_{size}B_{attrs}attrs_{timestamp}.html
@@ -313,15 +313,15 @@ sudo yum install -y perf perl-open
 git clone https://github.com/brendangregg/FlameGraph
 
 # Run benchmarks with server-side profiling
-python3 run_article_benchmarks.py --queries --mongodb --oracle --server-profile
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --server-profile
 
 # Or profile both client and server simultaneously
-python3 run_article_benchmarks.py --queries --mongodb --oracle \
+python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle \
   --flame-graph --server-profile
 
 # Standalone server profiling (10 seconds)
-python3 profile_server.py mongodb --duration 10
-python3 profile_server.py oracle --duration 10
+python3 scripts/profile_server.py mongodb --duration 10
+python3 scripts/profile_server.py oracle --duration 10
 ```
 
 **Server-Side Features:**
@@ -347,7 +347,7 @@ See `SERVER_PROFILING_README.md` for detailed server profiling documentation, tr
 
 Test multiple databases automatically:
 ```bash
-sh test.sh [OPTIONS]
+sh scripts/test.sh [OPTIONS]
 ```
 Sequentially tests MongoDB, PostgreSQL, YugabyteDB, and CockroachDB using Docker containers.
 
@@ -479,10 +479,10 @@ Run indexed benchmarks with queries on both systems:
 
 ```bash
 # Local system (background process with 30-minute timeout)
-timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor > local_benchmark.log 2>&1 &
+timeout 1800 python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor > local_benchmark.log 2>&1 &
 
 # Remote system (background process with 30-minute timeout)
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --monitor > remote_benchmark.log 2>&1 &"
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --monitor > remote_benchmark.log 2>&1 &"
 ```
 
 #### No-Index Benchmarks (Insertion-Only Performance)
@@ -491,10 +491,10 @@ Test pure insertion performance without indexes:
 
 ```bash
 # Local system
-timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > local_noindex_nostats.log 2>&1 &
+timeout 1800 python3 scripts/run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > local_noindex_nostats.log 2>&1 &
 
 # Remote system
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > remote_noindex_nostats.log 2>&1 &"
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py --no-index --nostats --mongodb --oracle --monitor > remote_noindex_nostats.log 2>&1 &"
 ```
 
 #### Indexed Benchmarks with Statistics Analysis
@@ -503,12 +503,12 @@ Test with Oracle statistics gathering enabled/disabled:
 
 ```bash
 # WITH --nostats flag (statistics disabled)
-timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > local_indexed_nostats.log 2>&1 &
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > remote_indexed_nostats.log 2>&1 &"
+timeout 1800 python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > local_indexed_nostats.log 2>&1 &
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle --nostats --monitor > remote_indexed_nostats.log 2>&1 &"
 
 # WITHOUT --nostats flag (statistics enabled, Oracle default behavior)
-timeout 1800 python3 run_article_benchmarks.py --queries --oracle --monitor > local_oracle_with_stats.log 2>&1 &
-ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 run_article_benchmarks.py --queries --oracle --monitor > remote_oracle_with_stats.log 2>&1 &"
+timeout 1800 python3 scripts/run_article_benchmarks.py --queries --oracle --monitor > local_oracle_with_stats.log 2>&1 &
+ssh oci-opc "cd BSON-JSON-bakeoff && timeout 1800 python3 scripts/run_article_benchmarks.py --queries --oracle --monitor > remote_oracle_with_stats.log 2>&1 &"
 ```
 
 ### Monitoring Running Benchmarks

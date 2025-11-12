@@ -26,7 +26,9 @@ rm -f "$BENCHMARK_LOG"
 
 # Start the benchmark in background
 echo "Starting benchmarks in background..."
-timeout $TIMEOUT_SECONDS python3 run_article_benchmarks.py --queries > "$BENCHMARK_LOG" 2>&1 &
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+timeout $TIMEOUT_SECONDS python3 "$SCRIPT_DIR/run_article_benchmarks.py" --queries > "$BENCHMARK_LOG" 2>&1 &
 BENCHMARK_PID=$!
 echo "Benchmark started with PID: $BENCHMARK_PID"
 echo "Log file: $BENCHMARK_LOG"

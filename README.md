@@ -341,7 +341,7 @@ The included `test.sh` script automates testing across multiple databases using 
 ### Running the Test Script
 
 ```bash
-sh test.sh [OPTIONS]
+sh scripts/test.sh [OPTIONS]
 ```
 
 The script will:
@@ -355,7 +355,7 @@ The script will:
 ### Example Test Script Usage
 
 ```bash
-sh test.sh -q 10 -n 200 -s 4000
+sh scripts/test.sh -q 10 -n 200 -s 4000
 ```
 
 This runs query tests with 200 attributes and 4000B payloads across all four database systems.
@@ -410,7 +410,7 @@ Total items found: 99939
 For automated, comprehensive benchmarking with per-test database isolation, use the Python orchestration script:
 
 ```bash
-python3 run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
 ```
 
 ### Key Features
@@ -424,7 +424,7 @@ python3 run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
 ### Script Options
 
 ```bash
-python3 run_article_benchmarks.py [OPTIONS]
+python3 scripts/run_article_benchmarks.py [OPTIONS]
 
 Options:
   --mongodb          Include MongoDB tests
@@ -440,13 +440,13 @@ Options:
 
 ```bash
 # Full comparison: MongoDB vs Oracle with and without indexes
-python3 run_article_benchmarks.py --mongodb --oracle --full-comparison --batch-size 1000
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --full-comparison --batch-size 1000
 
 # Query-focused test: Compare query performance
-python3 run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --queries --batch-size 1000
 
 # Insert-only test: Pure insertion performance
-python3 run_article_benchmarks.py --mongodb --oracle --no-index --batch-size 1000
+python3 scripts/run_article_benchmarks.py --mongodb --oracle --no-index --batch-size 1000
 ```
 
 The script automatically:

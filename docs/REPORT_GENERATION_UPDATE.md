@@ -96,7 +96,7 @@ benchmark_report_package.zip
 
 ```bash
 # Run benchmarks with both client and server profiling
-python3 run_article_benchmarks.py \
+python3 scripts/run_article_benchmarks.py \
   --queries \
   --mongodb \
   --oracle \
@@ -218,7 +218,7 @@ scp oci-opc:BSON-JSON-bakeoff/benchmark_report_package.zip ./remote_report.zip
 
 1. **Run benchmarks with profiling**
    ```bash
-   python3 run_article_benchmarks.py --queries --mongodb --oracle \
+   python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle \
      --flame-graph --server-profile
    ```
 
