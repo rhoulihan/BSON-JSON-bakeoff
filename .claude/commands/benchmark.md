@@ -65,12 +65,13 @@ Based on the user's answers:
    - Note: Realistic data (`-rd`) is automatically enabled by run_article_benchmarks.py
 
 2. **Generate appropriate command(s):**
-   - For remote system: `ssh oci-opc "cd BSON-JSON-bakeoff && nohup bash -c 'timeout 1800 python3 scripts/run_article_benchmarks.py [FLAGS] 2>&1' > ~/remote_benchmark.log 2>&1 &"`
+   - Timeout: Use `timeout 3600` (60 minutes) if `--large-items` enabled, otherwise `timeout 1800` (30 minutes)
+   - For remote system: `ssh oci-opc "cd BSON-JSON-bakeoff && nohup bash -c 'timeout SECONDS python3 scripts/run_article_benchmarks.py [FLAGS] 2>&1' > ~/remote_benchmark.log 2>&1 &"`
    - For local system: Similar command without SSH
    - For both phases: Chain with `&&` between no-index and queries phases
 
 3. **Execute benchmarks:**
-   - Start in background with 30-minute timeout per phase
+   - Start in background with timeout per phase (30 minutes standard, 60 minutes with large items)
    - Create monitoring command to check progress every 60 seconds
 
 4. **Monitor and report:**
@@ -89,8 +90,8 @@ Based on the user's answers:
 - Flame graphs: Temp files cleaned immediately during generation
 
 **Expected Duration:**
-- Standard tests (10B-4000B): 15-25 minutes per phase
-- With large items: 30-45 minutes per phase
+- Standard tests (10B-4000B): 15-25 minutes per phase (use 30-minute timeout)
+- With large items (10KB-1000KB): 45-60 minutes per phase (use 60-minute timeout)
 - With profiling: +5-10 minutes per phase
 - Both systems in parallel: Same as single system (runs concurrently)
 - Both phases sequential: 2× duration
