@@ -51,7 +51,7 @@ SINGLE_ATTR_TESTS = [
 LARGE_SINGLE_ATTR_TESTS = [
     {"size": 12000, "attrs": 1, "desc": "12KB single attribute"},
     {"size": 120000, "attrs": 1, "desc": "120KB single attribute"},
-    {"size": 1200000, "attrs": 1, "desc": "1200KB single attribute"},
+    {"size": 1000000, "attrs": 1, "desc": "1000KB single attribute"},
 ]
 
 MULTI_ATTR_TESTS = [
@@ -66,7 +66,7 @@ MULTI_ATTR_TESTS = [
 LARGE_MULTI_ATTR_TESTS = [
     {"size": 12000, "attrs": 200, "desc": "200 attributes × 60B = 12KB"},
     {"size": 120000, "attrs": 500, "desc": "500 attributes × 240B = 120KB"},
-    {"size": 1200000, "attrs": 1000, "desc": "1000 attributes × 1200B = 1200KB"},
+    {"size": 1000000, "attrs": 1000, "desc": "1000 attributes × 1000B = 1000KB"},
 ]
 
 # Databases to test - with service management info (all using indexes + realistic data)
