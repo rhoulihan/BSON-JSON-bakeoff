@@ -77,7 +77,7 @@ cd BSON-JSON-bakeoff
 Create a `config.properties` file with your database connection strings:
 
 ```bash
-cp config.properties.example config.properties
+cp config/config.properties.example config.properties
 ```
 
 Then edit `config.properties` with your actual credentials:
@@ -726,7 +726,7 @@ To add support for additional databases:
    - Add a new command-line flag for your database
    - Instantiate your implementation
    - Add logic to read the connection string from `config.properties`
-4. Add your database connection string to `config.properties.example` and `config.properties`
+4. Add your database connection string to `config/config.properties.example` and `config.properties`
 
 The `Oracle23AIOperations.java` class provides a complete example of implementing support for a new database system.
 
@@ -772,7 +772,7 @@ mvn clean install -U
 **Problem**: `ERROR: Could not load config.properties file`
 **Solution**: Create `config.properties` from the template:
 ```bash
-cp config.properties.example config.properties
+cp config/config.properties.example config.properties
 ```
 Then edit it with your actual database credentials
 

@@ -388,14 +388,14 @@ void close();
 
 ### Configuration Management
 
-**Database connections**: `config.properties` (git-ignored, copy from `config.properties.example`)
+**Database connections**: `config.properties` (git-ignored, copy from `config/config.properties.example`)
 ```properties
 mongodb.connection.string=mongodb://localhost:27017
 postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=PASSWORD
 oracle.connection.string=jdbc:oracle:thin:system/PASSWORD@localhost:1521/FREEPDB1
 ```
 
-**Test configurations**: JSON files (e.g., `config.example.json`) with parameters like database type, numDocs, payload sizes, batch size, etc.
+**Test configurations**: JSON files (e.g., `config/config.example.json`) with parameters like database type, numDocs, payload sizes, batch size, etc.
 
 ### Document Generation Strategy
 
@@ -609,7 +609,7 @@ The standard workflow for comprehensive testing:
 
 1. Create class implementing `DatabaseOperations` interface
 2. Add command-line flag in `Main.java` (around line 46-89)
-3. Add connection string to `config.properties.example`
+3. Add connection string to `config/config.properties.example`
 4. Implement all interface methods matching the semantics of existing implementations
 5. See `Oracle23AIOperations.java` for a complete reference implementation
 

@@ -206,7 +206,7 @@ public class Main {
         connectionString = System.getProperty("conn", connectionString);
         if (connectionString == null || connectionString.isEmpty()) {
             System.err.println("ERROR: Connection string not found in config.properties for database: " + dbType);
-            System.err.println("Please create config.properties from config.properties.example");
+            System.err.println("Please create config.properties from config/config.properties.example");
             return;
         }
 
@@ -893,7 +893,7 @@ public class Main {
             properties.load(input);
         } catch (IOException e) {
             System.err.println("ERROR: Could not load config.properties file.");
-            System.err.println("Please create config.properties from config.properties.example");
+            System.err.println("Please create config.properties from config/config.properties.example");
             System.err.println("Error: " + e.getMessage());
             System.exit(1);
         }
