@@ -1,0 +1,26 @@
+# Benchmark Configuration
+# Copy this file to benchmark_config.ini and update with your actual credentials
+# The benchmark_config.ini file is gitignored
+
+[oracle]
+# Oracle system password for health checks
+system_password = YourOraclePasswordHere
+
+# Database and PDB names
+cdb_name = FREE
+pdb_name = FREEPDB1
+
+# Connection details
+host = localhost
+port = 1521
+
+[mongodb]
+# MongoDB connection for health checks (usually no auth needed for local)
+host = localhost
+port = 27017
+
+[postgresql]
+# PostgreSQL user for health checks
+user = postgres
+host = localhost
+port = 5432

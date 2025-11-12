@@ -18,6 +18,7 @@ buildNumber.properties
 
 # Configuration files with credentials
 config.properties
+config/benchmark_config.ini
 
 # Performance reports
 performance-comparison-report.pdf

@@ -20,6 +20,8 @@ import argparse
 import random
 import os
 import signal
+import configparser
+from pathlib import Path
 
 # Import server profiler for server-side flame graphs
 try:
@@ -76,6 +78,22 @@ DATABASES = [
     {"name": "PostgreSQL (JSONB)", "key": "postgresql_jsonb", "flags": "-p -j -i -rd", "service": "postgresql-17", "db_type": "postgresql"},
     {"name": "Oracle JCT", "key": "oracle_jct", "flags": "-oj -i -mv -rd", "service": "oracle-free-26ai", "db_type": "oracle"},
 ]
+
+def load_benchmark_config():
+    """Load benchmark configuration from config/benchmark_config.ini"""
+    # Find config file relative to project root (parent of scripts directory)
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    config_file = project_root / "config" / "benchmark_config.ini"
+
+    if not config_file.exists():
+        print(f"❌ ERROR: Benchmark config not found: {config_file}")
+        print(f"   Please create it from: config/benchmark_config.ini.example")
+        sys.exit(1)
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    return config
 
 def check_async_profiler():
     """Check if async-profiler is available."""
@@ -156,8 +174,12 @@ def stop_all_databases():
     cleanup_database_files("oracle")
     print()
 
-def restart_database_with_cache_clear(service_name, db_type):
-    """Restart a database and clear OS caches to eliminate warmup effects."""
+def restart_database_with_cache_clear(service_name, db_type, config=None):
+    """Restart a database and clear OS caches to eliminate warmup effects.
+
+    Args:
+        config: ConfigParser object with benchmark config (required for Oracle)
+    """
     print(f"  Restarting {service_name} with cache clear...", end=" ", flush=True)
 
     # Stop the database
@@ -192,7 +214,13 @@ def restart_database_with_cache_clear(service_name, db_type):
                 return True
 
         elif db_type == "oracle":
-            pmon_check = subprocess.run("ps -ef | grep db_pmon_FREE | grep -v grep",
+            # Load Oracle config
+            if config is None:
+                print(f"✗ ERROR: Config required for Oracle health checks")
+                return False
+
+            cdb_name = config.get('oracle', 'cdb_name')
+            pmon_check = subprocess.run(f"ps -ef | grep db_pmon_{cdb_name} | grep -v grep",
                                        shell=True, capture_output=True, text=True)
             if pmon_check.stdout.strip():
                 print(f"✓ Ready (took {(i+1)*wait_interval}s)")
@@ -201,8 +229,12 @@ def restart_database_with_cache_clear(service_name, db_type):
     print(f"✗ Timeout waiting for database (waited {max_wait}s)")
     return False
 
-def start_database(service_name, db_type):
-    """Start a database service and wait for it to be ready."""
+def start_database(service_name, db_type, config=None):
+    """Start a database service and wait for it to be ready.
+
+    Args:
+        config: ConfigParser object with benchmark config (required for Oracle)
+    """
     print(f"  Starting {service_name}...", end=" ", flush=True)
     result = subprocess.run(f"sudo systemctl start {service_name}", shell=True, capture_output=True)
 
@@ -232,15 +264,26 @@ def start_database(service_name, db_type):
                 return True
 
         elif db_type == "oracle":
+            # Load Oracle config
+            if config is None:
+                print(f"✗ ERROR: Config required for Oracle health checks")
+                return False
+
+            oracle_password = config.get('oracle', 'system_password')
+            cdb_name = config.get('oracle', 'cdb_name')
+            pdb_name = config.get('oracle', 'pdb_name')
+            oracle_host = config.get('oracle', 'host')
+            oracle_port = config.get('oracle', 'port')
+
             # Check db_pmon process (Oracle 23ai uses db_ prefix instead of ora_)
-            pmon_check = subprocess.run("ps -ef | grep db_pmon_FREE | grep -v grep",
+            pmon_check = subprocess.run(f"ps -ef | grep db_pmon_{cdb_name} | grep -v grep",
                                        shell=True, capture_output=True, text=True)
 
             if pmon_check.stdout.strip():
                 # PMON is running, now verify the PDB is fully OPEN
-                # Check PDB status (FREEPDB1 must be OPEN, not just MOUNTED)
+                # Check PDB status (PDB must be OPEN, not just MOUNTED)
                 pdb_check = subprocess.run(
-                    "echo \"SELECT open_mode FROM v\\$pdbs WHERE name='FREEPDB1';\" | sqlplus -S system/G0_4w4y!@localhost:1521/FREE 2>&1",
+                    f"echo \"SELECT open_mode FROM v\\$pdbs WHERE name='{pdb_name}';\" | sqlplus -S system/{oracle_password}@{oracle_host}:{oracle_port}/{cdb_name} 2>&1",
                     shell=True, capture_output=True, text=True, timeout=10
                 )
 
@@ -248,7 +291,7 @@ def start_database(service_name, db_type):
                 if pdb_check.returncode == 0 and "READ WRITE" in pdb_check.stdout:
                     # PDB is OPEN, now verify JDBC connectivity to the PDB
                     jdbc_test = subprocess.run(
-                        "echo 'SELECT 1 FROM DUAL;' | sqlplus -S system/G0_4w4y!@localhost:1521/FREEPDB1 2>&1",
+                        f"echo 'SELECT 1 FROM DUAL;' | sqlplus -S system/{oracle_password}@{oracle_host}:{oracle_port}/{pdb_name} 2>&1",
                         shell=True, capture_output=True, text=True, timeout=10
                     )
 
@@ -454,11 +497,12 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
             except Exception as e:
                 print(f"    ⚠️  Server profiling stop error: {e}")
 
-def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, flame_graph=False, server_profile=False):
+def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, flame_graph=False, server_profile=False, config=None):
     """Run a complete test suite (single or multi attribute).
 
     Args:
         test_configs: List of test configurations
+        config: ConfigParser object with benchmark config (required for Oracle)
         test_type: Description of test type
         enable_queries: Whether to run query tests
         restart_per_test: If True, restart database before EACH test for maximum isolation
@@ -492,7 +536,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     print(f"\n--- {db['name']} ---")
 
                 # Start database for this specific test
-                if not start_database(db['service'], db['db_type']):
+                if not start_database(db['service'], db['db_type'], config):
                     print(f"  Testing: {test['desc']}... ✗ Database failed to start")
                     results[db['key']].append({"success": False, "error": "Database failed to start"})
                     continue
@@ -561,7 +605,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                         })
 
                 # Start new database
-                if not start_database(db['service'], db['db_type']):
+                if not start_database(db['service'], db['db_type'], config):
                     print(f"  ERROR: Failed to start {db['service']}, skipping tests")
                     results[db['key']] = [{"success": False, "error": "Database failed to start"} for _ in test_configs]
                     continue
@@ -675,6 +719,9 @@ def run_full_comparison_suite(args):
     global NUM_DOCS, NUM_RUNS, BATCH_SIZE, QUERY_LINKS, DATABASES, SINGLE_ATTR_TESTS, MULTI_ATTR_TESTS
     import copy
 
+    # Load benchmark configuration
+    config = load_benchmark_config()
+
     # Add large item tests if requested
     if args.large_items:
         SINGLE_ATTR_TESTS = SINGLE_ATTR_TESTS + LARGE_SINGLE_ATTR_TESTS
@@ -723,8 +770,8 @@ def run_full_comparison_suite(args):
         db['flags'] = db['flags'].replace(' -i', '').replace('-i ', '').replace(' -mv', '').replace('-mv ', '')
 
     # Run tests without indexes - restart database before each test for maximum isolation
-    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
-    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
+    single_results_noindex = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile, config=config)
+    multi_results_noindex = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (NO INDEX)", enable_queries=False, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile, config=config)
 
     # ========== PART 2: WITH-INDEX TESTS ==========
     print(f"\n{'='*80}")
@@ -741,7 +788,7 @@ def run_full_comparison_suite(args):
     # Restart MongoDB with cache clear for fair comparison
     for db in DATABASES:
         if db['db_type'] == 'mongodb':
-            if not restart_database_with_cache_clear(db['service'], db['db_type']):
+            if not restart_database_with_cache_clear(db['service'], db['db_type'], config):
                 print(f"  ERROR: Failed to restart {db['service']}")
             subprocess.run(f"sudo systemctl stop {db['service']}", shell=True, capture_output=True)
             time.sleep(1)
@@ -750,7 +797,7 @@ def run_full_comparison_suite(args):
     # Restart Oracle with cache clear for fair comparison
     for db in DATABASES:
         if db['db_type'] == 'oracle':
-            if not restart_database_with_cache_clear(db['service'], db['db_type']):
+            if not restart_database_with_cache_clear(db['service'], db['db_type'], config):
                 print(f"  ERROR: Failed to restart {db['service']}")
             subprocess.run(f"sudo systemctl stop {db['service']}", shell=True, capture_output=True)
             time.sleep(1)
@@ -759,8 +806,8 @@ def run_full_comparison_suite(args):
     print()
 
     # Run tests with indexes and queries - restart database before each test for maximum isolation
-    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
-    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile)
+    single_results_indexed = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile, config=config)
+    multi_results_indexed = run_test_suite(MULTI_ATTR_TESTS, "MULTI ATTRIBUTE (WITH INDEX)", enable_queries=True, restart_per_test=True, measure_sizes=args.measure_sizes, flame_graph=args.flame_graph, server_profile=args.server_profile, config=config)
 
     # Stop resource monitoring if running
     if monitor_proc is not None:
@@ -871,6 +918,9 @@ def main():
                         help='Include large item tests (10KB, 100KB, 1000KB) in addition to standard tests')
     args = parser.parse_args()
 
+    # Load benchmark configuration
+    config = load_benchmark_config()
+
     # Use command-line values
     NUM_DOCS = args.num_docs
     NUM_RUNS = args.num_runs
@@ -974,13 +1024,13 @@ def main():
         single_results = run_test_suite(SINGLE_ATTR_TESTS, "SINGLE", enable_queries=enable_queries,
                                        measure_sizes=args.measure_sizes, track_activity=True,
                                        activity_log=activity_log, flame_graph=args.flame_graph,
-                                       server_profile=args.server_profile)
+                                       server_profile=args.server_profile, config=config)
 
         # Run multi-attribute tests
         multi_results = run_test_suite(MULTI_ATTR_TESTS, "MULTI", enable_queries=enable_queries,
                                       measure_sizes=args.measure_sizes, track_activity=True,
                                       activity_log=activity_log, flame_graph=args.flame_graph,
-                                      server_profile=args.server_profile)
+                                      server_profile=args.server_profile, config=config)
 
         # Generate summary
         generate_summary_table(single_results, multi_results)
