@@ -237,20 +237,29 @@ def start_database(service_name, db_type):
                                        shell=True, capture_output=True, text=True)
 
             if pmon_check.stdout.strip():
-                # PMON is running, now verify we can actually connect
+                # PMON is running, now verify the database is fully OPEN and ready
                 # Use sqlplus to test connectivity with a simple query
                 conn_test = subprocess.run(
                     "echo 'SELECT 1 FROM DUAL;' | sqlplus -S system/G0_4w4y!@localhost:1521/FREE 2>&1",
                     shell=True, capture_output=True, text=True, timeout=10
                 )
 
-                # Check if query succeeded (output contains "1" and no connection errors)
-                if conn_test.returncode == 0 and "ORA-12541" not in conn_test.stdout and "ORA-12514" not in conn_test.stdout:
+                # Check if query succeeded (output contains "1" and no Oracle errors)
+                # ORA-12541: listener not running
+                # ORA-12514: listener does not know of service
+                # ORA-01109: database not open
+                if (conn_test.returncode == 0 and
+                    "ORA-12541" not in conn_test.stdout and
+                    "ORA-12514" not in conn_test.stdout and
+                    "ORA-01109" not in conn_test.stdout):
                     print(f"✓ Ready (took {(i+1)*wait_interval}s)")
                     return True
                 # If connection failed but PMON is running, keep waiting
                 elif i == 0:  # Only print on first attempt to avoid spam
-                    print(f"(PMON running, waiting for listener...)", end=" ", flush=True)
+                    if "ORA-01109" in conn_test.stdout:
+                        print(f"(Database opening...)", end=" ", flush=True)
+                    else:
+                        print(f"(PMON running, waiting for listener...)", end=" ", flush=True)
 
     print(f"✗ Timeout waiting for database (waited {max_wait}s)")
     return False
