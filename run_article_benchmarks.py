@@ -367,8 +367,9 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
             timeout=900  # 15 minutes per test
         )
 
-        # Parse result for "Best time to insert"
-        pattern = rf"Best time to insert {num_docs} documents with {size}B payload in {attrs} attributes? into indexed: (\d+)ms"
+        # Parse result for "Best time to insert" or "Time taken to insert"
+        # Standard format: "Best time to insert 10000 documents with 100B payload in 1 attribute into indexed: 123ms"
+        pattern = rf"(?:Best time|Time taken) to insert {num_docs} documents with {size}B payload in {attrs} attributes? into \w+: (\d+)ms"
         match = re.search(pattern, result.stdout)
 
         response = {
@@ -388,7 +389,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
             })
         else:
             # Try alternative pattern with "attribute" singular/plural
-            alt_pattern = rf"Best time to insert {num_docs} documents with {size}B payload in \d+ attributes? into indexed: (\d+)ms"
+            alt_pattern = rf"(?:Best time|Time taken) to insert {num_docs} documents with {size}B payload in \d+ attributes? into \w+: (\d+)ms"
             alt_match = re.search(alt_pattern, result.stdout)
             if alt_match:
                 time_ms = int(alt_match.group(1))
@@ -399,8 +400,20 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
                     "throughput": throughput
                 })
             else:
-                print(f"    Warning: Could not parse output")
-                return {"success": False, "error": "Could not parse output"}
+                # Try realistic data pattern: "Best time to insert 10000 documents with realistic nested data (~100B) into indexed: 123ms"
+                realistic_pattern = rf"(?:Best time|Time taken) to insert {num_docs} documents with realistic nested data \(~{size}B\) into \w+: (\d+)ms"
+                realistic_match = re.search(realistic_pattern, result.stdout)
+                if realistic_match:
+                    time_ms = int(realistic_match.group(1))
+                    throughput = round(num_docs / (time_ms / 1000), 2)
+                    response.update({
+                        "success": True,
+                        "time_ms": time_ms,
+                        "throughput": throughput
+                    })
+                else:
+                    print(f"    Warning: Could not parse output")
+                    return {"success": False, "error": "Could not parse output"}
 
         # If query tests were requested, parse query results
         if query_links is not None:
