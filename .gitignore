@@ -16,6 +16,9 @@ buildNumber.properties
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 
+# IDE directories
+.vscode/
+
 # Configuration files with credentials
 config.properties
 config/benchmark_config.ini
