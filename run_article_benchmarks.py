@@ -49,8 +49,8 @@ SINGLE_ATTR_TESTS = [
 
 # Large item test configurations (enabled with --large-items flag)
 LARGE_SINGLE_ATTR_TESTS = [
-    {"size": 12000, "attrs": 1, "desc": "12KB single attribute"},
-    {"size": 120000, "attrs": 1, "desc": "120KB single attribute"},
+    {"size": 10000, "attrs": 1, "desc": "10KB single attribute"},
+    {"size": 100000, "attrs": 1, "desc": "100KB single attribute"},
     {"size": 1000000, "attrs": 1, "desc": "1000KB single attribute"},
 ]
 
@@ -64,8 +64,8 @@ MULTI_ATTR_TESTS = [
 
 # Large multi-attribute test configurations (enabled with --large-items flag)
 LARGE_MULTI_ATTR_TESTS = [
-    {"size": 12000, "attrs": 200, "desc": "200 attributes × 60B = 12KB"},
-    {"size": 120000, "attrs": 500, "desc": "500 attributes × 240B = 120KB"},
+    {"size": 10000, "attrs": 200, "desc": "200 attributes × 50B = 10KB"},
+    {"size": 100000, "attrs": 500, "desc": "500 attributes × 200B = 100KB"},
     {"size": 1000000, "attrs": 1000, "desc": "1000 attributes × 1000B = 1000KB"},
 ]
 
