@@ -329,3 +329,157 @@ python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle
 python3 scripts/run_article_benchmarks.py --queries --mongodb --oracle \
   --monitor --flame-graph --server-profile
 ```
+
+## Running the Benchmark
+
+### Basic Example
+
+Run both test phases (no-index insertion + indexed with queries) on MongoDB and Oracle with statistics disabled for fair comparison:
+
+```bash
+# Phase 1: No-index insertion tests (pure insertion performance)
+python3 scripts/run_article_benchmarks.py --no-index --nostats --mongodb --oracle
+
+# Phase 2: Indexed with queries (insertion + query performance)
+python3 scripts/run_article_benchmarks.py --queries --nostats --mongodb --oracle
+
+# Or run both phases sequentially in background with timeout
+nohup bash -c 'timeout 1800 python3 scripts/run_article_benchmarks.py --no-index --nostats --mongodb --oracle > noindex.log 2>&1 && \
+               timeout 1800 python3 scripts/run_article_benchmarks.py --queries --nostats --mongodb --oracle > indexed.log 2>&1' &
+```
+
+**Basic Output:**
+- Console: Real-time test progress with timing results
+- `article_benchmark_results.json`: Performance data for all tests
+- Summary table showing insertion times and query performance
+
+### Complete Example (Full Profiling)
+
+Run comprehensive benchmarks with all profiling options and large items enabled:
+
+```bash
+# Single command with all options
+nohup bash -c '\
+  timeout 3600 python3 scripts/run_article_benchmarks.py \
+    --no-index --nostats --mongodb --oracle \
+    --large-items --monitor --flame-graph --server-profile \
+    > noindex_full.log 2>&1 && \
+  timeout 3600 python3 scripts/run_article_benchmarks.py \
+    --queries --nostats --mongodb --oracle \
+    --large-items --monitor --flame-graph --server-profile \
+    > indexed_full.log 2>&1' > /dev/null 2>&1 &
+
+# Monitor progress
+tail -f noindex_full.log
+```
+
+**Command Breakdown:**
+- `--no-index`: Run insertion-only tests without indexes
+- `--queries`: Run tests with indexes and query performance tests
+- `--nostats`: Disable Oracle statistics gathering for fair comparison
+- `--mongodb`: Test MongoDB BSON storage
+- `--oracle`: Test Oracle JSON Collection Tables
+- `--large-items`: Include 10KB, 100KB, 1000KB payload tests
+- `--monitor`: Track CPU, disk, network usage during tests
+- `--flame-graph`: Generate client-side Java flame graphs (async-profiler)
+- `--server-profile`: Generate server-side database flame graphs (Linux perf)
+- `timeout 3600`: 60-minute timeout per phase (required for large items)
+
+**Complete Output Files:**
+
+```
+project_root/
+├── noindex_full.log                          # Phase 1 benchmark log
+├── indexed_full.log                          # Phase 2 benchmark log
+├── article_benchmark_results.json            # Performance metrics (JSON)
+├── resource_metrics.json                     # System resource usage data
+├── flamegraphs/                              # Client-side profiling
+│   ├── mongodb_bson_insert_10B_1attrs_*.html
+│   ├── mongodb_bson_query_200B_10attrs_*.html
+│   ├── oracle_jct_insert_1000B_50attrs_*.html
+│   └── ... (~60 HTML files for full run)
+└── server_flamegraphs/                       # Server-side profiling
+    ├── mongodb_server_*.svg
+    ├── oracle_server_*.svg
+    └── ... (~60 SVG files for full run)
+```
+
+**Output File Details:**
+
+1. **Log Files** (`noindex_full.log`, `indexed_full.log`)
+   - Real-time benchmark progress
+   - Timing results for each test
+   - Summary tables at end
+   - Location: Project root
+
+2. **Performance Data** (`article_benchmark_results.json`)
+   - Structured JSON with all test results
+   - Insertion times, query times, throughput rates
+   - Used for generating HTML reports
+   - Location: Project root
+
+3. **Resource Metrics** (`resource_metrics.json`)
+   - CPU usage per core
+   - Disk I/O statistics
+   - Network traffic
+   - Memory usage
+   - Timestamps for correlation with tests
+   - Location: Project root
+
+4. **Client Flame Graphs** (`flamegraphs/*.html`)
+   - Interactive HTML flame graphs
+   - Profile Java client application (JDBC, JSON serialization)
+   - ~1-2MB per file
+   - Naming: `{database}_{operation}_{size}B_{attrs}attrs_{timestamp}.html`
+   - Location: `flamegraphs/` directory
+
+5. **Server Flame Graphs** (`server_flamegraphs/*.svg`)
+   - Interactive SVG flame graphs
+   - Profile database server processes (storage engine, query execution)
+   - ~500KB-2MB per file
+   - Naming: `{database}_server_{timestamp}.svg`
+   - Location: `server_flamegraphs/` directory
+
+### Generating HTML Report
+
+After benchmarks complete, generate a comprehensive HTML report with charts and flame graph links:
+
+```bash
+# Step 1: Parse log files to extract performance data
+python3 scripts/create_summaries_from_logs.py
+
+# Step 2: Generate unified HTML report with all flame graphs
+cp flamegraph_summaries.json report/
+cd report && python3 generate_unified_report.py
+
+# Output files:
+#   - unified_benchmark_report.html (standalone HTML report)
+#   - benchmark_report_package.zip  (distributable archive with all flame graphs)
+```
+
+**HTML Report Contents:**
+- Interactive performance charts (insertion, query)
+- Side-by-side MongoDB vs Oracle comparison
+- Flame graph links for deep-dive analysis
+- Executive summary with key findings
+- System configuration details
+
+**Distributable Package** (`benchmark_report_package.zip`):
+```
+extracted_folder/
+├── unified_benchmark_report.html    # Open this in browser
+├── flamegraphs/                     # 60+ client-side flame graphs
+└── server_flamegraphs/              # 60+ server-side flame graphs
+```
+
+The package is fully self-contained and can be shared with others for analysis on any system with a modern web browser.
+
+### Expected Duration
+
+| Configuration | Phase 1 (No-Index) | Phase 2 (Indexed) | Total |
+|--------------|-------------------|-------------------|-------|
+| **Basic** (no profiling) | 10-15 min | 15-20 min | 25-35 min |
+| **Standard tests** + profiling | 15-20 min | 20-25 min | 35-45 min |
+| **Large items** + profiling | 45-60 min | 45-60 min | 90-120 min |
+
+**Note:** Use 30-minute timeout for standard tests, 60-minute timeout for tests with `--large-items`.
