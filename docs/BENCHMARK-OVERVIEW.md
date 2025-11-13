@@ -1,6 +1,29 @@
-# Article Benchmark Script - Environment Dependencies
+# Benchmark Overview
 
-This document identifies all dependencies required to run `scripts/run_article_benchmarks.py` on local or remote systems.
+This document provides a comprehensive guide to running benchmarks and understanding environment dependencies for `scripts/run_article_benchmarks.py`.
+
+## Table of Contents
+
+- [System Requirements](#system-requirements)
+- [Database Dependencies](#database-dependencies)
+- [File System Dependencies](#file-system-dependencies)
+- [Configuration Files](#configuration-files)
+- [Profiling Dependencies (Optional)](#profiling-dependencies-optional)
+- [Python Dependencies](#python-dependencies)
+- [Network/Port Requirements](#networkport-requirements)
+- [Sudo/Permission Requirements](#sudopermission-requirements)
+- [Environment Variables](#environment-variables)
+- [Differences Between Local and Remote Systems](#differences-between-local-and-remote-systems)
+- [Troubleshooting Common Issues](#troubleshooting-common-issues)
+- [Summary Checklist](#summary-checklist)
+- [Quick Setup Commands](#quick-setup-commands)
+- [Running the Benchmark](#running-the-benchmark)
+  - [Basic Example](#basic-example)
+  - [Complete Example (Full Profiling)](#complete-example-full-profiling)
+  - [Generating HTML Report](#generating-html-report)
+  - [Expected Duration](#expected-duration)
+
+---
 
 ## System Requirements
 
