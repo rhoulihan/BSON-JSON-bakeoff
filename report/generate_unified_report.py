@@ -18,7 +18,6 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from report_modules.benchmark_formatter import format_benchmark_table
-from report_modules.executive_summary import generate_executive_summary_html, load_flamegraph_summaries
 from report_modules.flamegraph_to_benchmark_converter import convert_all_configurations
 from report_modules.chart_generator import generate_query_performance_chart, generate_insertion_performance_chart
 import flamegraph_report_helper
@@ -44,27 +43,23 @@ def generate_report_html(data, fg_sections, fg_summaries):
     remote_idx_summary, remote_idx_flamegraphs = fg_sections['remote_indexed']
     remote_noidx_summary, remote_noidx_flamegraphs = fg_sections['remote_noindex']
 
-    # Generate executive summary
-    exec_summary = generate_executive_summary_html({
-        'local_indexed': local_idx,
-        'local_noindex': local_noidx,
-        'remote_indexed': remote_idx,
-        'remote_noindex': remote_noidx
-    }, fg_summaries)
-
-    # Build tab buttons
-    tab_buttons = '''<button class="tab active" onclick="openTab(event, 'overview')">Executive Summary</button>'''
+    # Build tab buttons (first available tab is active)
+    tab_buttons = ""
+    first_tab = True
     if has_local_data:
-        tab_buttons += '''<button class="tab" onclick="openTab(event, 'local')">Local System</button>'''
+        active_class = " active" if first_tab else ""
+        tab_buttons += f'''<button class="tab{active_class}" onclick="openTab(event, 'local')">Local System</button>'''
+        first_tab = False
     if has_remote_data:
-        tab_buttons += '''<button class="tab" onclick="openTab(event, 'remote')">Remote System</button>'''
+        active_class = " active" if first_tab else ""
+        tab_buttons += f'''<button class="tab{active_class}" onclick="openTab(event, 'remote')">Remote System</button>'''
 
     # Build local system tab content
     local_tab_content = ""
     if has_local_data:
         local_tab_content = f'''
         <!-- LOCAL SYSTEM TAB -->
-        <div id="local" class="tab-content">
+        <div id="local" class="tab-content active">
             <div class="subtabs">
                 <button class="subtab active" onclick="openSubTab(event, 'local', 'local-indexed')">Indexed (with Queries)</button>
                 <button class="subtab" onclick="openSubTab(event, 'local', 'local-noindex')">No Index (Insert Only)</button>
@@ -142,9 +137,11 @@ def generate_report_html(data, fg_sections, fg_summaries):
     # Build remote system tab content
     remote_tab_content = ""
     if has_remote_data:
+        # Remote tab is active only if there's no local data
+        remote_active = " active" if not has_local_data else ""
         remote_tab_content = f'''
         <!-- REMOTE SYSTEM TAB -->
-        <div id="remote" class="tab-content">
+        <div id="remote" class="tab-content{remote_active}">
             <div class="subtabs">
                 <button class="subtab active" onclick="openSubTab(event, 'remote', 'remote-indexed')">Indexed (with Queries)</button>
                 <button class="subtab" onclick="openSubTab(event, 'remote', 'remote-noindex')">No Index (Insert Only)</button>
@@ -484,11 +481,6 @@ def generate_report_html(data, fg_sections, fg_summaries):
             {tab_buttons}
         </div>
 
-        <!-- OVERVIEW TAB -->
-        <div id="overview" class="tab-content active">
-            {exec_summary}
-        </div>
-
         {local_tab_content}
 
         {remote_tab_content}
@@ -597,7 +589,6 @@ System Requirements:
 
 Report Sections:
 ---------------
-- Executive Summary: Key findings and performance comparisons
 - Local System: Benchmark results from the local test environment
 - Remote System: Benchmark results from the remote OCI cloud environment
 - Test Results: Interactive charts showing throughput and response times
@@ -699,7 +690,6 @@ def main():
     print("This report combines:")
     print("  - Performance benchmark results with interactive charts")
     print("  - Flame graph analysis with detailed CPU profiling")
-    print("  - Executive summary with key findings")
     print("  - Side-by-side system comparisons")
     print()
 
