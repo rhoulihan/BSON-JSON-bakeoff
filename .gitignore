@@ -18,6 +18,7 @@ buildNumber.properties
 
 # IDE directories
 .vscode/
+.claude/
 
 # Configuration files with credentials
 config.properties
