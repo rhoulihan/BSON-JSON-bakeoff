@@ -10,6 +10,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 import java.util.Random;
 
 import org.json.JSONArray;
@@ -36,8 +37,28 @@ public class OracleJCT implements DatabaseOperations {
     public void initializeDatabase(String connectionString) {
         try {
             Class.forName("oracle.jdbc.driver.OracleDriver");
-            connection = (OracleConnection) DriverManager.getConnection(connectionString);
+
+            // Configure connection properties
+            Properties props = new Properties();
+
+            // Parse connection string to extract user, password, and URL
+            // Format: jdbc:oracle:thin:user/password@host:port/service
+            String[] parts = connectionString.split("[@/:]");
+            if (parts.length >= 3) {
+                props.setProperty("user", parts[3]);
+                props.setProperty("password", parts[4]);
+            }
+
+            // Disable zero-copy I/O for improved batch performance
+            props.setProperty(oracle.jdbc.OracleConnection.CONNECTION_PROPERTY_THIN_NET_USE_ZERO_COPY_IO, "false");
+
+            // Extract base URL (everything after jdbc:oracle:thin:)
+            String baseUrl = connectionString.substring(0, 17) + connectionString.substring(connectionString.indexOf("@"));
+
+            connection = (OracleConnection) DriverManager.getConnection(baseUrl, props);
             jsonFactory = new OracleJsonFactory();
+
+            System.out.println("⚙ Oracle JDBC: Zero-copy I/O disabled");
 
             // Get database version
             Statement versionStmt = connection.createStatement();
