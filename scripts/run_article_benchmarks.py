@@ -33,7 +33,7 @@ except ImportError:
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
 NUM_RUNS = 3
-BATCH_SIZE = 100
+BATCH_SIZE = 500
 QUERY_LINKS = 10  # Number of array elements for query tests
 
 # Async-profiler configuration
