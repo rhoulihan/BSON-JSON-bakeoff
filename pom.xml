@@ -35,13 +35,13 @@
             <dependency>
                 <groupId>com.oracle.database.jdbc</groupId>
                 <artifactId>ojdbc11</artifactId>
-                <version>23.4.0.24.05</version>
+                <version>23.26.0.0.0</version>
             </dependency>
             <!-- https://mvnrepository.com/artifact/com.oracle.database.jdbc/ucp -->
             <dependency>
                 <groupId>com.oracle.database.jdbc</groupId>
                 <artifactId>ucp</artifactId>
-                <version>23.4.0.24.05</version>
+                <version>23.26.0.0.0</version>
             </dependency>
         </dependencies>
 
