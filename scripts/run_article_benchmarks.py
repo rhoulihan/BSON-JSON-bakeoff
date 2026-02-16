@@ -84,7 +84,7 @@ def load_benchmark_config():
     config.read(config_file)
     return config
 
-def start_monitoring(output_file="resource_metrics.json", interval=5):
+def start_monitoring(output_file="resource_metrics.json", interval=0.5):
     """Start resource monitoring in the background."""
     monitor_script = os.path.join(os.path.dirname(__file__), "monitor_resources.py")
 
@@ -788,9 +788,9 @@ def main():
     parser.add_argument('--measure-sizes', action='store_true',
                         help='Enable BSON/OSON object size measurement and comparison')
     parser.add_argument('--monitor', action='store_true',
-                        help='Enable system resource monitoring (CPU, disk, network) every 5 seconds')
-    parser.add_argument('--monitor-interval', type=int, default=5,
-                        help='Resource monitoring interval in seconds (default: 5)')
+                        help='Enable system resource monitoring (CPU, disk, network) every 0.5 seconds')
+    parser.add_argument('--monitor-interval', type=float, default=0.5,
+                        help='Resource monitoring interval in seconds (default: 0.5)')
     parser.add_argument('--nostats', action='store_true',
                         help='Disable Oracle statistics gathering (Oracle only)')
     parser.add_argument('--large-items', action='store_true',

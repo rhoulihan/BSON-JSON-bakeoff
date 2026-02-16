@@ -281,7 +281,7 @@ def detect_ci_environment():
     
     return ci_info
 
-def start_monitoring(output_file="resource_metrics.json", interval=5):
+def start_monitoring(output_file="resource_metrics.json", interval=0.5):
     """Start resource monitoring in the background."""
     monitor_script = os.path.join(os.path.dirname(__file__), "monitor_resources.py")
 
@@ -1148,7 +1148,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
         print(f"    ERROR: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, config=None, results_storage=None, test_run_id=None, system_info=None, ci_info=None, enable_monitoring=False, monitor_interval=5, validate=False):
+def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_test=False, measure_sizes=False, track_activity=False, activity_log=None, config=None, results_storage=None, test_run_id=None, system_info=None, ci_info=None, enable_monitoring=False, monitor_interval=0.5, validate=False):
     """Run a complete test suite (single or multi attribute).
 
     Args:
@@ -1761,11 +1761,11 @@ def main():
     parser.add_argument('--measure-sizes', action='store_true',
                         help='Enable BSON/OSON object size measurement and comparison')
     parser.add_argument('--monitor', action='store_true', default=True,
-                        help='Enable system resource monitoring (CPU, disk, network) every 5 seconds (default: enabled)')
+                        help='Enable system resource monitoring (CPU, disk, network) every 0.5 seconds (default: enabled)')
     parser.add_argument('--no-monitor', dest='monitor', action='store_false',
                         help='Disable system resource monitoring')
-    parser.add_argument('--monitor-interval', type=int, default=5,
-                        help='Resource monitoring interval in seconds (default: 5)')
+    parser.add_argument('--monitor-interval', type=float, default=0.5,
+                        help='Resource monitoring interval in seconds (default: 0.5)')
     parser.add_argument('--large-items', action='store_true',
                         help='Include large item tests (10KB, 100KB, 1000KB) in addition to standard tests')
     parser.add_argument('--validate', action='store_true',
