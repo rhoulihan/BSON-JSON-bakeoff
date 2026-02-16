@@ -40,6 +40,35 @@ log_error() {
 # Create log directory
 mkdir -p "$LOG_DIR"
 
+# Check Python dependencies needed for results storage
+check_python_deps() {
+    if [ "$STORE_RESULTS" != "true" ]; then
+        return 0
+    fi
+
+    log_info "Checking Python dependencies for results storage..."
+
+    if python3 -c 'import pymongo' 2>/dev/null; then
+        log_success "pymongo is available"
+    else
+        log_warning "pymongo not found, installing..."
+        if pip3 install pymongo 2>/dev/null || pip install pymongo 2>/dev/null || python3 -m pip install pymongo 2>/dev/null; then
+            log_success "pymongo installed successfully"
+        else
+            log_warning "Failed to install pymongo - results storage will be unavailable"
+            STORE_RESULTS=false
+        fi
+    fi
+
+    # Install any other dependencies from requirements.txt if present
+    local req_file="$PROJECT_ROOT/requirements.txt"
+    if [ -f "$req_file" ]; then
+        pip3 install -r "$req_file" --quiet 2>/dev/null || pip install -r "$req_file" --quiet 2>/dev/null || python3 -m pip install -r "$req_file" --quiet 2>/dev/null || true
+    fi
+}
+
+check_python_deps
+
 # Build the project if needed
 [ -f ./target/insertTest-1.0-jar-with-dependencies.jar ] || {
     log_info "Building project..."

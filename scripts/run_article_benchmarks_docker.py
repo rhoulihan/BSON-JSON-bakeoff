@@ -26,6 +26,32 @@ import configparser
 from pathlib import Path
 
 # Import results storage and metadata collection modules
+def _ensure_pymongo_installed():
+    """Check if pymongo is importable; if not, attempt to install it."""
+    try:
+        import pymongo  # noqa: F401
+        return True
+    except ImportError:
+        print("⚠️  pymongo not found, attempting to install...")
+        install_cmds = [
+            ["pip3", "install", "pymongo"],
+            ["pip", "install", "pymongo"],
+            [sys.executable, "-m", "pip", "install", "pymongo"],
+        ]
+        for cmd in install_cmds:
+            try:
+                subprocess.check_call(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print("✅ pymongo installed successfully")
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
+        print("❌ Failed to install pymongo")
+        return False
+
 try:
     from results_storage import ResultsStorage, connect_to_mongodb
     from version_detector import get_all_versions
@@ -33,9 +59,22 @@ try:
     import uuid
     RESULTS_STORAGE_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️  Warning: Results storage modules not available: {e}")
-    RESULTS_STORAGE_AVAILABLE = False
-    uuid = None
+    # Attempt to install missing dependency and retry
+    if _ensure_pymongo_installed():
+        try:
+            from results_storage import ResultsStorage, connect_to_mongodb
+            from version_detector import get_all_versions
+            from system_info_collector import get_system_info, get_ci_info
+            import uuid
+            RESULTS_STORAGE_AVAILABLE = True
+        except ImportError as e2:
+            print(f"⚠️  Warning: Results storage modules not available after install attempt: {e2}")
+            RESULTS_STORAGE_AVAILABLE = False
+            uuid = None
+    else:
+        print(f"⚠️  Warning: Results storage modules not available: {e}")
+        RESULTS_STORAGE_AVAILABLE = False
+        uuid = None
 
 JAR_PATH = "target/insertTest-1.0-jar-with-dependencies.jar"
 NUM_DOCS = 10000
