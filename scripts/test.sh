@@ -299,11 +299,19 @@ cleanup_container "db"
 docker run --name db --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres
 
 if wait_for_db "db" "docker exec db pg_isready -U postgres" 30; then
-    # Create test database
-    until echo "CREATE DATABASE test;" | docker exec -i db psql -U postgres 2>/dev/null; do
+    # Create test database (with timeout to prevent infinite hang)
+    attempts=0
+    max_attempts=30
+    until echo "CREATE DATABASE test;" | docker exec -i db psql -U postgres 2>/dev/null || [ $attempts -ge $max_attempts ]; do
         sleep 2
+        attempts=$((attempts + 1))
     done
-    run_benchmark "postgresql" "-p" "$@" || overall_success=false
+    if [ $attempts -ge $max_attempts ]; then
+        log_error "PostgreSQL CREATE DATABASE timed out after $max_attempts attempts"
+        overall_success=false
+    else
+        run_benchmark "postgresql" "-p" "$@" || overall_success=false
+    fi
 else
     log_error "PostgreSQL failed to start"
     overall_success=false
@@ -321,11 +329,21 @@ docker run --name db -d -p 5432:5433 yugabytedb/yugabyte yugabyted start --backg
 
 if wait_for_db "db" "docker exec db yugabyted status" 60; then
     # Wait for YSQL to be ready and create test database
+    # Note: YugabyteDB binds YSQL to the container hostname, not localhost,
+    # so we must pass -h $(hostname) to ysqlsh
     sleep 10
-    until echo "CREATE DATABASE test;" | docker exec -i db ysqlsh -U yugabyte 2>/dev/null; do
+    attempts=0
+    max_attempts=30
+    until docker exec db ysqlsh -h $(docker exec db hostname) -U yugabyte -c "CREATE DATABASE test;" 2>/dev/null || [ $attempts -ge $max_attempts ]; do
         sleep 5
+        attempts=$((attempts + 1))
     done
-    run_benchmark "yugabytedb" "-p" "$@" || overall_success=false
+    if [ $attempts -ge $max_attempts ]; then
+        log_error "YugabyteDB CREATE DATABASE timed out after $max_attempts attempts"
+        overall_success=false
+    else
+        run_benchmark "yugabytedb" "-p" "$@" || overall_success=false
+    fi
 else
     log_error "YugabyteDB failed to start"
     overall_success=false
