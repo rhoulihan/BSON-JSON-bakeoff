@@ -121,6 +121,25 @@ header p {
     max-height: 400px;
 }
 
+.latency-section {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.latency-section .section-title {
+    color: #667eea;
+    margin-bottom: 5px;
+}
+
+.latency-section .section-desc {
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 20px;
+}
+
 .results-table {
     margin-top: 30px;
 }

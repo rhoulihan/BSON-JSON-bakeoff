@@ -119,13 +119,21 @@ public class MongoDBOperations implements DatabaseOperations {
                 System.out.println("Binding: " + bson.length);
             insertDocs.add(json);
             if (insertDocs.size() == Main.batchSize) {
+                long batchStart = System.nanoTime();
                 collection.insertMany(insertDocs);
+                if (Main.collectLatency && Main.insertLatencyCollector != null) {
+                    Main.insertLatencyCollector.recordNanos(System.nanoTime() - batchStart);
+                }
                 insertDocs.clear();
             }
         }
 
         if (!insertDocs.isEmpty()) {
+            long batchStart = System.nanoTime();
             collection.insertMany(insertDocs);
+            if (Main.collectLatency && Main.insertLatencyCollector != null) {
+                Main.insertLatencyCollector.recordNanos(System.nanoTime() - batchStart);
+            }
         }
 
         if (Main.runLookupTest) {

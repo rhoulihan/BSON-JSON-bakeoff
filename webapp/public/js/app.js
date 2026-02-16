@@ -7,6 +7,11 @@ const API_BASE = '/api/results';
 let insertionChart = null;
 let queryChart = null;
 let throughputChart = null;
+let latencyPercentileChart = null;
+let latencyTimelineChart = null;
+
+// Cloud database types that have latency metrics
+const CLOUD_DB_TYPES = ['mongodb-cloud', 'documentdb-azure'];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -129,7 +134,7 @@ function updateTable(results) {
     tbody.innerHTML = '';
     
     if (results.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="loading">No results found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="loading">No results found</td></tr>';
         return;
     }
 
@@ -146,6 +151,16 @@ function updateTable(results) {
         const insertThroughput = result.results?.insert_throughput || '-';
         const queryTime = result.results?.query_time_ms || '-';
 
+        // Build latency display for cloud databases
+        let latencyDisplay = '-';
+        const latencyMetrics = result.latency_metrics;
+        if (latencyMetrics) {
+            const insertLatency = latencyMetrics.insert_multi_attr || latencyMetrics.insert_single_attr;
+            if (insertLatency) {
+                latencyDisplay = `${insertLatency.p50_ms?.toFixed(1) || '-'}/${insertLatency.p99_ms?.toFixed(1) || '-'}`;
+            }
+        }
+
         row.innerHTML = `
             <td>${timestamp}</td>
             <td title="${testRunId}">${shortRunId}</td>
@@ -156,6 +171,7 @@ function updateTable(results) {
             <td>${insertTime}</td>
             <td>${insertThroughput}</td>
             <td>${queryTime}</td>
+            <td>${latencyDisplay}</td>
         `;
         tbody.appendChild(row);
     });
@@ -169,6 +185,8 @@ function getColorForDatabaseType(dbType) {
         'postgresql': '#f093fb',
         'oracle': '#4facfe',
         'oracle23ai': '#00d2ff',
+        'mongodb-cloud': '#2ecc71',
+        'documentdb-azure': '#e67e22',
         'unknown': '#95a5a6'
     };
     return colorMap[dbType?.toLowerCase()] || colorMap['unknown'];
@@ -337,12 +355,15 @@ function updateCharts(results) {
     
     // Update insertion chart
     updateInsertionChart(grouped);
-    
+
     // Update query chart
     updateQueryChart(grouped);
-    
+
     // Update throughput chart
     updateThroughputChart(grouped);
+
+    // Update latency charts (only for cloud database results)
+    updateLatencyCharts(results);
 }
 
 function updateInsertionChart(grouped) {
@@ -525,6 +546,152 @@ function downloadCSV(csv, filename) {
     a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
+}
+
+function isCloudDbType(dbType) {
+    return CLOUD_DB_TYPES.includes(dbType?.toLowerCase());
+}
+
+function updateLatencyCharts(results) {
+    // Filter to cloud database results that have latency metrics
+    const cloudResults = results.filter(r =>
+        r.results?.success &&
+        isCloudDbType(r.database?.type) &&
+        r.latency_metrics
+    );
+
+    const latencySection = document.getElementById('latency-section');
+    if (cloudResults.length === 0) {
+        latencySection.style.display = 'none';
+        return;
+    }
+    latencySection.style.display = 'block';
+
+    updateLatencyPercentileChart(cloudResults);
+    updateLatencyTimelineChart(cloudResults);
+}
+
+function updateLatencyPercentileChart(cloudResults) {
+    const ctx = document.getElementById('latency-percentile-chart').getContext('2d');
+    if (latencyPercentileChart) {
+        latencyPercentileChart.destroy();
+    }
+
+    // Group by database type
+    const byDb = {};
+    cloudResults.forEach(r => {
+        const dbType = r.database?.type || 'unknown';
+        if (!byDb[dbType]) byDb[dbType] = [];
+        const insertMetrics = r.latency_metrics?.insert_multi_attr || r.latency_metrics?.insert_single_attr;
+        if (insertMetrics) {
+            byDb[dbType].push(insertMetrics);
+        }
+    });
+
+    const labels = ['Min', 'p50', 'p95', 'p99', 'Max'];
+    const datasets = Object.entries(byDb).map(([dbType, metricsList]) => {
+        // Average across all test results for this db type
+        const avg = (arr, key) => arr.reduce((s, m) => s + (m[key] || 0), 0) / arr.length;
+        const color = getColorForDatabaseType(dbType);
+        return {
+            label: dbType,
+            data: [
+                avg(metricsList, 'min_ms'),
+                avg(metricsList, 'p50_ms'),
+                avg(metricsList, 'p95_ms'),
+                avg(metricsList, 'p99_ms'),
+                avg(metricsList, 'max_ms')
+            ],
+            backgroundColor: color + '80',
+            borderColor: color,
+            borderWidth: 2
+        };
+    });
+
+    latencyPercentileChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Latency (ms)' }
+                }
+            }
+        }
+    });
+}
+
+function updateLatencyTimelineChart(cloudResults) {
+    const ctx = document.getElementById('latency-timeline-chart').getContext('2d');
+    if (latencyTimelineChart) {
+        latencyTimelineChart.destroy();
+    }
+
+    // Pick the most recent result per cloud db type that has samples
+    const byDb = {};
+    cloudResults.forEach(r => {
+        const dbType = r.database?.type || 'unknown';
+        const insertMetrics = r.latency_metrics?.insert_multi_attr || r.latency_metrics?.insert_single_attr;
+        if (insertMetrics?.samples?.length > 0) {
+            // Keep most recent (results are sorted by timestamp desc)
+            if (!byDb[dbType]) {
+                byDb[dbType] = insertMetrics.samples;
+            }
+        }
+    });
+
+    if (Object.keys(byDb).length === 0) {
+        return;
+    }
+
+    // Find the max number of samples across all db types
+    const maxSamples = Math.max(...Object.values(byDb).map(s => s.length));
+    const labels = Array.from({ length: maxSamples }, (_, i) => `Batch ${i + 1}`);
+
+    const datasets = Object.entries(byDb).map(([dbType, samples]) => {
+        const color = getColorForDatabaseType(dbType);
+        return {
+            label: dbType,
+            data: samples,
+            borderColor: color,
+            backgroundColor: color + '20',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: true,
+            tension: 0.1
+        };
+    });
+
+    latencyTimelineChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Batch Latency (ms)' }
+                },
+                x: {
+                    title: { display: true, text: 'Batch Number' },
+                    ticks: {
+                        maxTicksLimit: 20
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.dataset.label}: ${context.parsed.y?.toFixed(2)}ms`
+                    }
+                }
+            }
+        }
+    });
 }
 
 function showError(message) {
