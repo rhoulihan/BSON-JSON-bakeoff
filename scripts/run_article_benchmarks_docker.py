@@ -1434,9 +1434,34 @@ def generate_comparison_summary(single_noindex, single_indexed, multi_noindex, m
                     payload = SINGLE_ATTR_TESTS[i]['desc']
                     print(f"  {payload:<10} {noindex_time:>6}ms       {indexed_time:>6}ms       {diff:+6.1f}%")
 
+def ensure_config_properties():
+    """Auto-generate config.properties with Docker-appropriate defaults if missing."""
+    project_root = Path(__file__).parent.parent
+    config_file = project_root / "config.properties"
+    if not config_file.exists():
+        print("config.properties not found - generating with Docker defaults...")
+        config_file.write_text(
+            "# Auto-generated config.properties for Docker-based testing\n"
+            "# See config/config.properties.example for full documentation\n"
+            "\n"
+            "# MongoDB Connection\n"
+            "mongodb.connection.string=mongodb://localhost:27017\n"
+            "\n"
+            "# PostgreSQL Connection\n"
+            "postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password\n"
+            "\n"
+            "# DocumentDB Connection (MongoDB-compatible)\n"
+            "documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256\n"
+        )
+        print(f"✓ Generated {config_file}")
+
+
 def main():
     """Main execution."""
     global NUM_DOCS, NUM_RUNS, BATCH_SIZE, QUERY_LINKS, DATABASES
+
+    # Auto-generate config.properties if missing
+    ensure_config_properties()
 
     parser = argparse.ArgumentParser(description='Run benchmark tests replicating LinkedIn article (Docker version)')
     parser.add_argument('--queries', '-q', action='store_true',
