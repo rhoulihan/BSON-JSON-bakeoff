@@ -405,8 +405,8 @@ def check_ready(container_name, db_type):
             return True
     
     elif db_type == "documentdb":
-        # DocumentDB doesn't have mongosh in container, check from host or check port
-        # Find the port for this container
+        # DocumentDB doesn't have mongosh in container - must check from host
+        # Use an actual authenticated MongoDB ping, not just a port check
         db_info = None
         for db in DATABASES:
             if db['container'] == container_name:
@@ -415,23 +415,44 @@ def check_ready(container_name, db_type):
 
         if db_info:
             port = db_info['port']
-            # Try to connect from host using mongosh if available, otherwise check port
-            if os.path.exists("/usr/bin/mongosh") or os.path.exists("/usr/local/bin/mongosh"):
-                # Try connecting from host
+            # Try pymongo ping first (most reliable), then mongosh from host
+            try:
+                from pymongo import MongoClient
+                client = MongoClient(
+                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true',
+                    serverSelectionTimeoutMS=3000
+                )
+                client.admin.command('ping')
+                client.close()
+                return True
+            except Exception:
+                pass
+
+            # Fallback: try mongosh from host with authentication
+            try:
                 check = subprocess.run(
-                    f"mongosh --quiet --host localhost --port {port} --eval 'db.adminCommand(\"ping\").ok' 2>&1",
+                    f"mongosh --quiet --host localhost --port {port} "
+                    f"--username testuser --password testpass --authenticationDatabase admin "
+                    f"--eval 'db.runCommand({{ping:1}})' 2>&1",
                     shell=True, capture_output=True, text=True, timeout=5
                 )
-                if "1" in check.stdout:
+                if "ok" in check.stdout and "1" in check.stdout:
                     return True
-            else:
-                # Fallback: check if port is listening
+            except (subprocess.TimeoutExpired, Exception):
+                pass
+
+            # Final fallback: use psql inside the container to check if the
+            # PostgreSQL engine (which DocumentDB is built on) is accepting connections.
+            # This is more reliable than nc -z because it verifies the DB engine, not just the port.
+            try:
                 check = subprocess.run(
-                    f"nc -z localhost {port} 2>&1",
-                    shell=True, capture_output=True, text=True, timeout=2
+                    f"docker exec {container_name} psql -h localhost -p 9712 -U testuser -d postgres -c 'SELECT 1'",
+                    shell=True, capture_output=True, text=True, timeout=5
                 )
-                if check.returncode == 0:
+                if check.returncode == 0 and "1" in check.stdout:
                     return True
+            except (subprocess.TimeoutExpired, Exception):
+                pass
 
     elif db_type == "postgresql":
         # PostgreSQL readiness check
@@ -521,6 +542,65 @@ def initialize_database(container_name: str, db_type: str) -> bool:
         print(f"    ⚠️  Database initialization failed: {e}")
         return False
 
+def _verify_documentdb_operational(port, container_name="documentdb-benchmark", max_attempts=10, retry_interval=2):
+    """Verify DocumentDB can perform actual read/write operations, not just accept connections.
+
+    Tries pymongo first for a full MongoDB wire protocol check, then falls back to
+    psql inside the container to verify the PostgreSQL engine is operational.
+
+    Args:
+        port: Port number DocumentDB is listening on
+        container_name: Docker container name for psql fallback
+        max_attempts: Maximum number of verification attempts
+        retry_interval: Seconds between retry attempts
+
+    Returns:
+        True if DocumentDB is fully operational, False otherwise
+    """
+    pymongo_available = True
+    try:
+        from pymongo import MongoClient
+    except ImportError:
+        pymongo_available = False
+
+    for attempt in range(1, max_attempts + 1):
+        if pymongo_available:
+            try:
+                client = MongoClient(
+                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true',
+                    serverSelectionTimeoutMS=5000
+                )
+                db = client['_readiness_check']
+                db['_test'].insert_one({'check': 1})
+                result = db['_test'].find_one({'check': 1})
+                client.drop_database('_readiness_check')
+                client.close()
+                if result:
+                    print(f"    ✓ DocumentDB operational verification passed (pymongo)")
+                    return True
+            except Exception as e:
+                if attempt == max_attempts:
+                    print(f"    ✗ DocumentDB pymongo verification failed after {max_attempts} attempts: {e}")
+        else:
+            # Fallback: use psql inside container to verify PostgreSQL engine can process queries
+            try:
+                check = subprocess.run(
+                    f"docker exec {container_name} psql -h localhost -p 9712 -U testuser -d postgres "
+                    f"-c 'SELECT 1'",
+                    shell=True, capture_output=True, text=True, timeout=10
+                )
+                if check.returncode == 0 and "1" in check.stdout:
+                    print(f"    ✓ DocumentDB operational verification passed (psql)")
+                    return True
+            except Exception as e:
+                if attempt == max_attempts:
+                    print(f"    ✗ DocumentDB psql verification failed after {max_attempts} attempts: {e}")
+
+        time.sleep(retry_interval)
+
+    print(f"    ✗ DocumentDB operational verification failed after {max_attempts} attempts")
+    return False
+
 def start_database(container_name, db_type, config=None):
     """Start a Docker container and wait for it to be ready.
 
@@ -551,7 +631,8 @@ def start_database(container_name, db_type, config=None):
         return False, None
 
     # Wait for database to be ready
-    max_wait = 60
+    # DocumentDB is slower to initialize than MongoDB - give it more time
+    max_wait = 180 if db_type == "documentdb" else 60
     wait_interval = 2
 
     for i in range(max_wait // wait_interval):
@@ -559,6 +640,12 @@ def start_database(container_name, db_type, config=None):
 
         if check_ready(container_name, db_type):
             print(f"✓ Ready (took {(i+1)*wait_interval}s)")
+
+            # For DocumentDB, verify it's fully operational with a real operation
+            if db_type == "documentdb":
+                if not _verify_documentdb_operational(db_info['port'], container_name):
+                    print(f"    ⚠️  Warning: DocumentDB accepted connections but operational verification failed")
+                    # Continue anyway - the benchmark will fail with a clear error if it's not ready
 
             # Initialize database (create test db, users, etc.)
             if not initialize_database(container_name, db_type):
