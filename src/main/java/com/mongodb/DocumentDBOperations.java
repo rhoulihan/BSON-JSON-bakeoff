@@ -186,7 +186,7 @@ public class DocumentDBOperations implements DatabaseOperations {
         int ct = 0;
         for (Document json : bsonDocuments) {
             byte[] bson = toBsonBytes(json);
-            if (ct++ < 10)
+            if (Main.measureObjectSizes && ct++ < 10)
                 System.out.println("Binding: " + bson.length);
             insertDocs.add(json);
             if (insertDocs.size() == Main.batchSize) {
