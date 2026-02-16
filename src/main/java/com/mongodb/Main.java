@@ -36,6 +36,9 @@ public class Main {
     public static boolean measureObjectSizes = false;
     public static boolean gatherOracleStats = true;  // Default: enabled
     public static boolean validateResults = false;  // Validation mode for data integrity checks
+    public static boolean collectLatency = false;  // Collect per-operation latency metrics (for cloud/SaaS DBs)
+    public static LatencyCollector insertLatencyCollector = null;
+    public static LatencyCollector queryLatencyCollector = null;
 
     // Variables to track BSON object sizes
     private static long totalBsonSize = 0;
@@ -128,6 +131,11 @@ public class Main {
                 case "-validate":
                     System.out.println("Validation mode enabled - will verify data integrity...");
                     validateResults = true;
+                    break;
+
+                case "-latency":
+                    System.out.println("Latency collection enabled - will record per-operation latencies...");
+                    collectLatency = true;
                     break;
 
                 case "-r":
@@ -683,12 +691,21 @@ public class Main {
                 }
 
                 for (String collectionName : collectionNames) {
+                    // Initialize latency collector for single-attr insert
+                    if (collectLatency) {
+                        insertLatencyCollector = new LatencyCollector("insert_single_attr");
+                    }
                     long timeTaken = dbOperations.insertDocuments(collectionName, documents, dataSize, false);
                     if (numRuns == 1) {
                         System.out.println(String.format("Time taken to insert %d documents with %dB payload in 1 attribute into %s: %dms", numDocs, dataSize, collectionName, timeTaken));
                     }
                     if (timeTaken < bestSingleAttrTime && timeTaken > 0) {
                         bestSingleAttrTime = timeTaken;
+                    }
+                    // Print latency stats for single-attr insert
+                    if (collectLatency && insertLatencyCollector != null) {
+                        insertLatencyCollector.printStats();
+                        insertLatencyCollector = null;
                     }
                 }
 
@@ -732,6 +749,10 @@ public class Main {
             }
 
             for (String collectionName : collectionNames) {
+                // Initialize latency collector for multi-attr insert
+                if (collectLatency) {
+                    insertLatencyCollector = new LatencyCollector("insert_multi_attr");
+                }
                 // When using realistic data, set dataSize to 0 so insertDocuments doesn't add binary payload
                 int insertDataSize = useRealisticData ? 0 : dataSize;
                 long timeTaken = dbOperations.insertDocuments(collectionName, docsToInsert, insertDataSize, !useRealisticData);
@@ -741,6 +762,11 @@ public class Main {
                 }
                 if (timeTaken < bestMultiAttrTime && timeTaken > 0) {
                     bestMultiAttrTime = timeTaken;
+                }
+                // Print latency stats for multi-attr insert
+                if (collectLatency && insertLatencyCollector != null) {
+                    insertLatencyCollector.printStats();
+                    insertLatencyCollector = null;
                 }
 
                 // Validation phase - verify insertion results
@@ -781,21 +807,40 @@ public class Main {
                 String queryCollection = runIndexTest ? "indexed" : "noindex";
                 int totalItemsFound = 0;
                 String type = runLookupTest ? "using $lookup" : useInCondition ? "using $in condition" : "using multikey index";
+
+                // Initialize latency collector for queries
+                if (collectLatency) {
+                    queryLatencyCollector = new LatencyCollector("query");
+                }
+
                 long startTime = System.currentTimeMillis();
 
                 if (!runLookupTest) {
                     if (useInCondition) {
                         for (JSONObject document : documents) {
+                            long qStart = System.nanoTime();
                             totalItemsFound += dbOperations.queryDocumentsByIdWithInCondition(queryCollection, document);
+                            if (collectLatency && queryLatencyCollector != null) {
+                                queryLatencyCollector.recordNanos(System.nanoTime() - qStart);
+                            }
                         }
                     } else {
                         for (String id : objectIds) {
+                            long qStart = System.nanoTime();
                             totalItemsFound += dbOperations.queryDocumentsById(queryCollection, id);
+                            if (collectLatency && queryLatencyCollector != null) {
+                                queryLatencyCollector.recordNanos(System.nanoTime() - qStart);
+                            }
                         }
                     }
                 } else {
-                    for (String id : objectIds)
+                    for (String id : objectIds) {
+                        long qStart = System.nanoTime();
                         totalItemsFound += dbOperations.queryDocumentsByIdUsingLookup(queryCollection, id);
+                        if (collectLatency && queryLatencyCollector != null) {
+                            queryLatencyCollector.recordNanos(System.nanoTime() - qStart);
+                        }
+                    }
                 }
 
                 long totalQueryTime = System.currentTimeMillis() - startTime;
@@ -825,6 +870,12 @@ public class Main {
                         System.err.println(String.format("  ✗ VALIDATION WARNING: Unexpected item count - found %d (max expected: %d)",
                             totalItemsFound, maxPossibleItems));
                     }
+                }
+
+                // Print latency stats for queries
+                if (collectLatency && queryLatencyCollector != null) {
+                    queryLatencyCollector.printStats();
+                    queryLatencyCollector = null;
                 }
             }
         }

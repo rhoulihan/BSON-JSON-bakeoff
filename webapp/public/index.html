@@ -65,6 +65,21 @@
             </div>
         </div>
 
+        <div id="latency-section" class="latency-section" style="display:none;">
+            <h2 class="section-title">Cloud Database Latency Analysis</h2>
+            <p class="section-desc">Per-operation latency metrics for cloud/SaaS databases (MongoDB Atlas, Azure DocumentDB)</p>
+            <div class="charts-container">
+                <div class="chart-section">
+                    <h2>Insert Batch Latency Percentiles (ms)</h2>
+                    <canvas id="latency-percentile-chart"></canvas>
+                </div>
+                <div class="chart-section">
+                    <h2>Insert Batch Latency Over Time</h2>
+                    <canvas id="latency-timeline-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
         <div class="results-table">
             <h2>Recent Test Results</h2>
             <table id="results-table">
@@ -79,6 +94,7 @@
                         <th>Insert Time (ms)</th>
                         <th>Insert Throughput</th>
                         <th>Query Time (ms)</th>
+                        <th>Latency p50/p99</th>
                     </tr>
                 </thead>
                 <tbody id="results-tbody">
