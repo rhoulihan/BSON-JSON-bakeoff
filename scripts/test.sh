@@ -102,6 +102,8 @@ get_docker_image() {
         postgresql)    echo "postgres" ;;
         yugabytedb)    echo "yugabytedb/yugabyte" ;;
         cockroachdb)   echo "cockroachdb/cockroach" ;;
+        mongodb-cloud)       echo "cloud" ;;
+        documentdb-azure)    echo "cloud" ;;
         *)             echo "unknown" ;;
     esac
 }
@@ -112,6 +114,65 @@ get_container_name() {
         documentdb)    echo "documentdb" ;;
         *)             echo "db" ;;
     esac
+}
+
+# Read a value from benchmark_config.ini
+# Usage: read_config "section" "key" "default"
+read_config() {
+    local section="$1"
+    local key="$2"
+    local default="$3"
+    local config_file="$PROJECT_ROOT/config/benchmark_config.ini"
+
+    if [ ! -f "$config_file" ]; then
+        echo "$default"
+        return
+    fi
+
+    # Simple INI parser: find [section], then key = value
+    local in_section=false
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        case "$line" in
+            \#*|"") continue ;;
+        esac
+        # Check for section header
+        if echo "$line" | grep -q "^\[${section}\]$"; then
+            in_section=true
+            continue
+        fi
+        # New section starts - stop looking
+        if echo "$line" | grep -q '^\['; then
+            in_section=false
+            continue
+        fi
+        # If in the right section, look for key
+        if [ "$in_section" = true ]; then
+            local k v
+            k=$(echo "$line" | sed 's/\s*=.*//' | sed 's/^\s*//' | sed 's/\s*$//')
+            v=$(echo "$line" | sed 's/[^=]*=\s*//' | sed 's/^\s*//' | sed 's/\s*$//')
+            if [ "$k" = "$key" ]; then
+                echo "$v"
+                return
+            fi
+        fi
+    done < "$config_file"
+
+    echo "$default"
+}
+
+# Check if a cloud database is enabled in config
+is_cloud_db_enabled() {
+    local section="$1"
+    local enabled
+    enabled=$(read_config "$section" "enabled" "false")
+    [ "$enabled" = "true" ]
+}
+
+# Get cloud database connection string from config
+get_cloud_connection_string() {
+    local section="$1"
+    read_config "$section" "connection_string" ""
 }
 
 # Function to store results in MongoDB
@@ -407,6 +468,118 @@ fi
 cleanup_container "db"
 
 echo ""
+
+# ============================================
+# MongoDB Atlas (Cloud/SaaS) - optional
+# ============================================
+if is_cloud_db_enabled "mongodb_atlas"; then
+    ATLAS_CONN=$(get_cloud_connection_string "mongodb_atlas")
+    if [ -n "$ATLAS_CONN" ]; then
+        log_info "============================================"
+        log_info " MongoDB Atlas [Cloud/SaaS]"
+        log_info "============================================"
+        log_info "Connecting to MongoDB Atlas..."
+
+        # Verify connectivity with pymongo ping
+        if python3 -c "from pymongo import MongoClient; c=MongoClient('$ATLAS_CONN', serverSelectionTimeoutMS=10000); c.admin.command('ping'); print('ok')" 2>/dev/null | grep -q "ok"; then
+            log_success "MongoDB Atlas is reachable"
+
+            # Detect version
+            atlas_version=$(python3 -c "from pymongo import MongoClient; c=MongoClient('$ATLAS_CONN', serverSelectionTimeoutMS=10000); print(c.admin.command('buildInfo').get('version','unknown'))" 2>/dev/null || echo "unknown")
+            log_info "MongoDB Atlas version: $atlas_version"
+
+            # Run benchmark - uses MongoDBOperations (no -ddb flag)
+            output_file="$LOG_DIR/mongodb-cloud_$(date +%Y%m%d_%H%M%S).log"
+            log_info "Running MongoDB Atlas benchmark..."
+            echo "========================================" | tee "$output_file"
+            echo "Database: mongodb-cloud [Cloud/SaaS]" | tee -a "$output_file"
+            echo "Timestamp: $(date)" | tee -a "$output_file"
+            echo "Test Run ID: $TEST_RUN_ID" | tee -a "$output_file"
+            echo "Arguments: $*" | tee -a "$output_file"
+            echo "========================================" | tee -a "$output_file"
+
+            java -Dconn="$ATLAS_CONN" -jar ./target/insertTest-1.0-jar-with-dependencies.jar "$@" 2>&1 | tee -a "$output_file"
+            exit_code=${PIPESTATUS[0]}
+
+            if [ $exit_code -eq 0 ]; then
+                log_success "MongoDB Atlas benchmark completed"
+                if [ "$STORE_RESULTS" = "true" ]; then
+                    log_info "Storing MongoDB Atlas results to MongoDB..."
+                    python3 "$SCRIPTS_DIR/store_benchmark_results.py" \
+                        --db-type "mongodb-cloud" \
+                        --test-run-id "$TEST_RUN_ID" \
+                        --input-file "$output_file" \
+                        --db-version "$atlas_version"
+                fi
+            else
+                log_error "MongoDB Atlas benchmark failed (exit code: $exit_code)"
+                overall_success=false
+            fi
+        else
+            log_error "MongoDB Atlas is not reachable - skipping"
+            overall_success=false
+        fi
+    else
+        log_warning "MongoDB Atlas enabled but no connection_string configured"
+    fi
+    echo ""
+fi
+
+# ============================================
+# Azure DocumentDB (Cloud/SaaS) - optional
+# ============================================
+if is_cloud_db_enabled "azure_documentdb"; then
+    AZURE_CONN=$(get_cloud_connection_string "azure_documentdb")
+    if [ -n "$AZURE_CONN" ]; then
+        log_info "============================================"
+        log_info " Azure DocumentDB [Cloud/SaaS]"
+        log_info "============================================"
+        log_info "Connecting to Azure DocumentDB..."
+
+        # Verify connectivity with pymongo ping
+        if python3 -c "from pymongo import MongoClient; c=MongoClient('$AZURE_CONN', serverSelectionTimeoutMS=10000); c.admin.command('ping'); print('ok')" 2>/dev/null | grep -q "ok"; then
+            log_success "Azure DocumentDB is reachable"
+
+            # Detect version
+            azure_version=$(python3 -c "from pymongo import MongoClient; c=MongoClient('$AZURE_CONN', serverSelectionTimeoutMS=10000); print(c.server_info().get('version','unknown'))" 2>/dev/null || echo "unknown")
+            log_info "Azure DocumentDB version: $azure_version"
+
+            # Run benchmark - uses DocumentDBOperations (-ddb flag)
+            output_file="$LOG_DIR/documentdb-azure_$(date +%Y%m%d_%H%M%S).log"
+            log_info "Running Azure DocumentDB benchmark..."
+            echo "========================================" | tee "$output_file"
+            echo "Database: documentdb-azure [Cloud/SaaS]" | tee -a "$output_file"
+            echo "Timestamp: $(date)" | tee -a "$output_file"
+            echo "Test Run ID: $TEST_RUN_ID" | tee -a "$output_file"
+            echo "Arguments: -ddb $*" | tee -a "$output_file"
+            echo "========================================" | tee -a "$output_file"
+
+            java -Dconn="$AZURE_CONN" -jar ./target/insertTest-1.0-jar-with-dependencies.jar -ddb "$@" 2>&1 | tee -a "$output_file"
+            exit_code=${PIPESTATUS[0]}
+
+            if [ $exit_code -eq 0 ]; then
+                log_success "Azure DocumentDB benchmark completed"
+                if [ "$STORE_RESULTS" = "true" ]; then
+                    log_info "Storing Azure DocumentDB results to MongoDB..."
+                    python3 "$SCRIPTS_DIR/store_benchmark_results.py" \
+                        --db-type "documentdb-azure" \
+                        --test-run-id "$TEST_RUN_ID" \
+                        --input-file "$output_file" \
+                        --db-version "$azure_version"
+                fi
+            else
+                log_error "Azure DocumentDB benchmark failed (exit code: $exit_code)"
+                overall_success=false
+            fi
+        else
+            log_error "Azure DocumentDB is not reachable - skipping"
+            overall_success=false
+        fi
+    else
+        log_warning "Azure DocumentDB enabled but no connection_string configured"
+    fi
+    echo ""
+fi
 
 # ============================================
 # Summary
