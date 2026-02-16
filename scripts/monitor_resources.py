@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 class ResourceMonitor:
-    def __init__(self, interval=5, output_file="resource_metrics.json"):
+    def __init__(self, interval=1, output_file="resource_metrics.json"):
         self.interval = interval
         self.output_file = output_file
         self.running = True
