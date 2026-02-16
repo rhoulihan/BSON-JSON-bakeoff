@@ -213,6 +213,14 @@ td.metric-na {
     font-style: italic;
 }
 
+/* Version sub-components in table */
+.version-sub {
+    display: inline-block;
+    font-size: 0.8em;
+    color: #888;
+    line-height: 1.3;
+}
+
 /* Chart subtitle */
 .chart-subtitle {
     color: #888;
