@@ -52,6 +52,9 @@ combined_benchmark_results.json
 # Log files
 *.log
 
+# Node.js
+node_modules/
+
 # Python cache
 __pycache__/
 

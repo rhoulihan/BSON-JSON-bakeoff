@@ -19,7 +19,7 @@ async function connectToMongoDB() {
     const collectionName = process.env.MONGODB_COLLECTION_NAME || 'test_runs';
 
     try {
-        client = new MongoClient(connectionString);
+        client = new MongoClient(connectionString, { serverSelectionTimeoutMS: 5000 });
         await client.connect();
         db = client.db(databaseName);
         console.log(`Connected to MongoDB: ${databaseName}`);
