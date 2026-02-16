@@ -150,12 +150,26 @@ store_results() {
     return $exit_code
 }
 
+# Get connection string for a database type (used to override config.properties via -Dconn)
+get_connection_string() {
+    case "$1" in
+        mongodb)       echo "mongodb://localhost:27017" ;;
+        documentdb)    echo "mongodb://testuser:testpass@localhost:10260/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000" ;;
+        postgresql)    echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
+        yugabytedb)    echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
+        cockroachdb)   echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
+        *)             echo "" ;;
+    esac
+}
+
 # Function to run benchmark and capture output
 run_benchmark() {
     local db_type="$1"
     local extra_flags="$2"
     shift 2  # Remove db_type and extra_flags so "$@" only contains user args
     local output_file="$LOG_DIR/${db_type}_$(date +%Y%m%d_%H%M%S).log"
+    local conn_string
+    conn_string=$(get_connection_string "$db_type")
 
     log_info "Running $db_type benchmark..."
     echo "========================================" | tee "$output_file"
@@ -165,8 +179,9 @@ run_benchmark() {
     echo "Extra flags: $extra_flags $*" | tee -a "$output_file"
     echo "========================================" | tee -a "$output_file"
 
-    # Run the benchmark and capture output
-    java -jar ./target/insertTest-1.0-jar-with-dependencies.jar $extra_flags "$@" 2>&1 | tee -a "$output_file"
+    # Run the benchmark with explicit connection string override (-Dconn)
+    # This ensures Docker-correct credentials/ports regardless of config.properties
+    java -Dconn="$conn_string" -jar ./target/insertTest-1.0-jar-with-dependencies.jar $extra_flags "$@" 2>&1 | tee -a "$output_file"
     local exit_code=${PIPESTATUS[0]}
 
     if [ $exit_code -eq 0 ]; then
