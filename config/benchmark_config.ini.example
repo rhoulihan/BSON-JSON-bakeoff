@@ -19,6 +19,14 @@ port = 1521
 host = localhost
 port = 27017
 
+[documentdb]
+# DocumentDB connection for health checks (Docker container with auth)
+user = testuser
+password = testpass
+database = test
+host = localhost
+port = 10260
+
 [postgresql]
 # PostgreSQL user for health checks
 user = postgres
