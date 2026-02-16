@@ -4,17 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Java-based benchmarking tool that compares document storage and retrieval performance across multiple databases using Docker containers. Tests insertion speeds, query performance, and different payload/indexing strategies. Results are stored in an external MongoDB instance and visualized through a Node.js webapp dashboard.
+A Java-based benchmarking tool that compares document storage and retrieval performance across multiple databases. Local databases run in Docker containers; cloud/SaaS databases (MongoDB Atlas, Azure DocumentDB) are tested remotely. All results are stored in an external MongoDB instance and visualized through a Node.js webapp dashboard.
 
 ### Key Architecture
 
 1. **Java benchmark engine** - Core insertion/query tests with configurable payloads
-2. **Docker-based test execution** - Each database runs in its own container for isolation
-3. **External MongoDB results storage** - All benchmark results are posted to a central MongoDB instance
-4. **Node.js/Express webapp** - Dashboard for visualizing and comparing results
-5. **Data validation** - Post-test verification that data was written and read back correctly
+2. **Docker-based test execution** - Each local database runs in its own container for isolation
+3. **Cloud/SaaS database support** - MongoDB Atlas and Azure DocumentDB tested over network
+4. **External MongoDB results storage** - All benchmark results posted to a central MongoDB instance
+5. **Node.js/Express webapp** - Dashboard for visualizing, filtering by test run, and comparing results
+6. **Data validation** - Post-test verification that data was written and read back correctly
+7. **Latency tracking** - Per-operation latency metrics (p50/p95/p99) for cloud databases
+8. **Test run grouping** - UUID-based test_run_id links all results from a single execution
 
 ## Supported Databases
+
+### Local (Docker)
 
 | Database | Docker Image | Driver | Flag |
 |----------|-------------|--------|------|
@@ -23,8 +28,20 @@ A Java-based benchmarking tool that compares document storage and retrieval perf
 | PostgreSQL (JSON/JSONB) | `postgres:latest` | postgresql 42.7.3 | `-p` |
 | YugabyteDB (YSQL) | `yugabytedb/yugabyte:latest` | postgresql 42.7.3 | `-p` |
 | CockroachDB (SQL) | `cockroachdb/cockroach:latest` | postgresql 42.7.3 | `-p` |
-| Oracle 23AI (Duality Views) | N/A (native install) | ojdbc11 23.4.0 | `-o` |
-| Oracle 23AI (JCT) | N/A (native install) | ojdbc11 23.4.0 | `-oj` |
+
+### Cloud/SaaS (Optional, config-gated)
+
+| Database | Type Key | Config Section | Flag |
+|----------|---------|---------------|------|
+| MongoDB Atlas | `mongodb-cloud` | `[mongodb_atlas]` | `--mongodb-atlas` |
+| Azure DocumentDB | `documentdb-azure` | `[azure_documentdb]` | `--azure-documentdb` |
+
+### Oracle (Native install, not Dockerized)
+
+| Database | Driver | Flag |
+|----------|--------|------|
+| Oracle 23AI (Duality Views) | ojdbc11 23.4.0 | `-o` |
+| Oracle 23AI (JCT) | ojdbc11 23.4.0 | `-oj` |
 
 ## Build and Run Commands
 
@@ -43,9 +60,10 @@ sh scripts/test.sh [JAVA_FLAGS]
 
 This script:
 1. Builds the JAR if it doesn't exist
-2. Starts each database in Docker, waits for readiness, runs benchmarks, stops container
-3. Stores results to external MongoDB (if configured in `config/benchmark_config.ini`)
-4. Tests: MongoDB, DocumentDB, PostgreSQL, YugabyteDB, CockroachDB
+2. Auto-generates `config.properties` with Docker-correct connection strings
+3. Starts each database in Docker, waits for readiness, runs benchmarks (with `-Dconn` override), stops container
+4. Stores results to external MongoDB (if configured in `config/benchmark_config.ini`)
+5. Tests: MongoDB, DocumentDB, PostgreSQL, YugabyteDB, CockroachDB
 
 Example:
 ```bash
@@ -57,27 +75,29 @@ sh scripts/test.sh -q 10 -n 200 -s 4000 -v
 For comprehensive benchmarks with resource monitoring, validation, and results storage:
 
 ```bash
-# All databases, with queries, indexes, and validation
+# All Docker databases, with queries, indexes, and validation
 python3 scripts/run_article_benchmarks_docker.py --queries --validate
 
 # Specific databases only
 python3 scripts/run_article_benchmarks_docker.py --mongodb --postgresql --queries
 
-# Insert-only (no indexes)
-python3 scripts/run_article_benchmarks_docker.py --no-index --validate
+# Include cloud databases
+python3 scripts/run_article_benchmarks_docker.py --queries --mongodb-atlas --azure-documentdb
 
 # Full comparison (both indexed and non-indexed)
 python3 scripts/run_article_benchmarks_docker.py --full-comparison --validate
-
-# With large items (10KB, 100KB, 1000KB payloads)
-python3 scripts/run_article_benchmarks_docker.py --queries --large-items
 ```
+
+Each run generates a UUID `test_run_id` that groups all database results together.
 
 ### Direct Java Execution
 
 For single benchmark runs against a running database:
 ```bash
 java -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS] [numItems]
+
+# Override connection string (used by Docker scripts)
+java -Dconn="mongodb://localhost:27017" -jar target/insertTest-1.0-jar-with-dependencies.jar [OPTIONS]
 ```
 
 ## Results Storage and Webapp
@@ -103,6 +123,17 @@ database_name = benchmark_results
 collection_name = test_runs
 ```
 
+Cloud databases are configured in their own sections:
+```ini
+[mongodb_atlas]
+enabled = true
+connection_string = mongodb+srv://user:pass@cluster.mongodb.net/test
+
+[azure_documentdb]
+enabled = true
+connection_string = mongodb://user:pass@host:10255/?ssl=true&replicaSet=globaldb&...
+```
+
 ### Result Document Schema
 
 Each test result stored in MongoDB includes:
@@ -113,7 +144,8 @@ Each test result stored in MongoDB includes:
 - `test_config.test_type`, `test_config.payload_size`, `test_config.indexed`, etc.
 - `results.insert_time_ms`, `results.insert_throughput`, `results.query_time_ms`, `results.query_throughput`
 - `system_info` - CPU, memory, OS details
-- `resource_metrics` - CPU, disk IOPS, I/O wait during test
+- `resource_metrics` - CPU, disk IOPS, I/O wait during test (Docker databases)
+- `latency_metrics` - Per-operation p50/p95/p99 percentiles (cloud databases)
 - `ci_info` - CI platform, commit hash, branch (if in CI)
 
 ### Webapp
@@ -127,19 +159,21 @@ npm start
 
 Open http://localhost:3000 for the dashboard with:
 - Interactive Chart.js charts (insertion time, query time, throughput)
-- Filter by database type, version, date range
+- Latency percentile charts for cloud database results
+- Filter by database type, version, test run ID, date range
+- System info and resource metrics display
 - Results table with all test data
 - CSV export
 
 **API Endpoints:**
-- `GET /api/results` - Query results with filters (database_type, database_version, start_date, end_date, limit, skip)
+- `GET /api/results` - Query results with filters (`database_type`, `database_version`, `test_run_id`, `start_date`, `end_date`, `limit`, `skip`)
 - `GET /api/results/:id` - Single result by ID
-- `GET /api/results/meta/versions` - All unique database types, versions
+- `GET /api/results/meta/versions` - All unique database types, versions, and test run IDs
 - `GET /api/results/meta/comparison` - Aggregated performance comparison
 
 ## Data Validation
 
-The `-v` (or `-validate`) flag enables post-test data integrity verification:
+The `-v` (or `--validate`) flag enables post-test data integrity verification:
 
 **Insertion validation:**
 - Verifies document count in the database matches expected count
@@ -149,30 +183,22 @@ The `-v` (or `-validate`) flag enables post-test data integrity verification:
 - Verifies query result count is non-zero
 - Verifies result count doesn't exceed maximum possible
 
-**Usage:**
-```bash
-# Direct Java
-java -jar target/insertTest-1.0-jar-with-dependencies.jar -v -q 10 10000
-
-# Python orchestration
-python3 scripts/run_article_benchmarks_docker.py --queries --validate
-
-# Shell script
-sh scripts/test.sh -v -q 10
-```
-
-**Output:**
-```
-  ✓ Document count verified: 10000
-  ✓ Sample validation: 100/100 documents verified
-  ✓ Query count verified: 99941 items found (max possible: 100000)
-```
-
 **DatabaseOperations interface** validation methods:
 - `long getDocumentCount(String collectionName)` - Count documents in DB
 - `boolean validateDocument(String collectionName, String id, JSONObject expected)` - Verify specific document
 
 All database implementations (MongoDB, PostgreSQL, Oracle, DocumentDB) implement these methods.
+
+## Latency Tracking (Cloud Databases)
+
+For cloud/SaaS databases, local resource monitoring is not meaningful. Instead, the `-latency` Java flag enables per-operation latency collection:
+
+- `LatencyCollector.java` records per-batch insert and per-query latencies
+- Calculates min, max, avg, p50, p95, p99 percentile statistics
+- Outputs structured `LATENCY_STATS|<operation_type>|{json}` lines parsed by Python
+- Python orchestration automatically enables `-latency` for cloud database types
+- Results stored in `latency_metrics` field of MongoDB result documents
+- Webapp shows dedicated latency charts for cloud database results
 
 ## Architecture
 
@@ -182,6 +208,22 @@ Strategy pattern with `DatabaseOperations` interface:
 - **Interface**: `DatabaseOperations` (8 methods including validation)
 - **Implementations**: `MongoDBOperations`, `PostgreSQLOperations`, `Oracle23AIOperations`, `OracleJCT`, `DocumentDBOperations`
 - **Main coordinator**: `Main.java` - argument parsing, document generation, benchmarking, validation
+- **Latency collector**: `LatencyCollector.java` - per-operation latency tracking
+
+### Connection String Override
+
+Docker test scripts pass connection strings directly via `-Dconn` JVM system property. This ensures correct credentials and ports regardless of what's in `config.properties`. The Java code applies the override at `Main.java` line ~219:
+```java
+connectionString = System.getProperty("conn", connectionString);
+```
+
+### DocumentDB Special Handling
+
+DocumentDB is built on PostgreSQL with a MongoDB wire protocol gateway:
+- **TLS required**: Gateway on port 10260 uses auto-generated TLS certificates. All connections must include `tls=true&tlsAllowInvalidCertificates=true`
+- **Version reporting**: Three components captured — DocumentDB product version, MongoDB wire protocol compatibility version, underlying PostgreSQL version
+- **Startup**: PostgreSQL engine starts first (~4s), MongoDB protocol layer starts after. Readiness checks use pymongo with TLS, then fall back to psql inside the container
+- **Java TLS handling**: `DocumentDBOperations.initializeDatabase()` detects `tls=true` and `tlsAllowInvalidCertificates=true` in the connection string and builds a custom `SSLContext` that accepts self-signed certificates
 
 ### Project Structure
 
@@ -191,20 +233,19 @@ BSON-JSON-bakeoff/
 │   ├── Main.java                    # Entry point, benchmark orchestration, validation
 │   ├── DatabaseOperations.java      # Interface (with validation methods)
 │   ├── MongoDBOperations.java       # MongoDB implementation
-│   ├── PostgreSQLOperations.java    # PostgreSQL/YugabyteDB/CockroachDB implementation
+│   ├── PostgreSQLOperations.java    # PostgreSQL/YugabyteDB/CockroachDB
+│   ├── DocumentDBOperations.java    # DocumentDB (local + Azure, requires TLS)
+│   ├── LatencyCollector.java        # Per-operation latency tracking
 │   ├── Oracle23AIOperations.java    # Oracle Duality Views
-│   ├── OracleJCT.java              # Oracle JSON Collection Tables
-│   └── DocumentDBOperations.java    # AWS DocumentDB (MongoDB-compatible)
+│   └── OracleJCT.java              # Oracle JSON Collection Tables
 ├── scripts/
-│   ├── run_article_benchmarks_docker.py  # Docker-based benchmark orchestration
-│   ├── run_article_benchmarks.py         # Native (non-Docker) benchmark orchestration
+│   ├── run_article_benchmarks_docker.py  # Docker + cloud benchmark orchestration
 │   ├── test.sh                           # Shell script for Docker testing
 │   ├── results_storage.py                # MongoDB results storage module (pymongo)
-│   ├── store_benchmark_results.py        # CLI to parse benchmark output and store in MongoDB
+│   ├── store_benchmark_results.py        # CLI to parse benchmark output → MongoDB
 │   ├── version_detector.py               # Database/library version detection
 │   ├── system_info_collector.py          # System info collection (CPU, memory, OS)
-│   ├── monitor_resources.py              # Real-time resource monitoring during tests
-│   └── profile_server.py                 # Server-side flame graph profiling
+│   └── monitor_resources.py              # Real-time resource monitoring during tests
 ├── webapp/
 │   ├── server.js                    # Express server (port 3000)
 │   ├── package.json                 # Node.js dependencies
@@ -215,28 +256,28 @@ BSON-JSON-bakeoff/
 │       ├── css/style.css            # Styles
 │       └── js/app.js                # Chart rendering, filtering, CSV export
 ├── config/
-│   ├── benchmark_config.ini.example # Config template (DB connections + results storage)
+│   ├── benchmark_config.ini.example # Config (DB connections, cloud DBs, results storage)
 │   ├── config.properties.example    # Java DB connection strings
 │   └── config.example.json          # JSON test configuration
-├── docs/                            # Feature documentation
 ├── pom.xml                          # Maven (Java 11, mongodb-driver-sync, postgresql, ojdbc11)
+├── QUICKSTART.md                    # End-to-end setup guide
 ├── CLAUDE.md                        # This file
 └── README.md                        # User-facing documentation
 ```
 
-### Configuration
+### Configuration Files
 
-**`config/benchmark_config.ini`** (primary config for Docker testing):
-- `[oracle]` - Oracle credentials and connection
+**`config/benchmark_config.ini`** (primary config):
+- `[results_storage]` - External MongoDB for storing results
+- `[mongodb_atlas]` - MongoDB Atlas connection (enabled/disabled)
+- `[azure_documentdb]` - Azure DocumentDB connection (enabled/disabled)
 - `[mongodb]` - MongoDB host/port for health checks
 - `[postgresql]` - PostgreSQL user/host/port
 - `[documentdb]` - DocumentDB credentials
-- `[results_storage]` - External MongoDB for storing results
 
-**`config.properties`** (JDBC connection strings for direct Java execution):
-- `mongodb.connection.string`
-- `postgresql.connection.string`
-- `oracle.connection.string`
+**`config.properties`** (Java JDBC connection strings):
+- Auto-generated by Docker scripts with correct defaults
+- Overridden by `-Dconn` JVM property for Docker testing
 
 ### Document Generation
 
@@ -252,15 +293,16 @@ Documents are generated in `Main.java` with:
 | Flag | Description |
 |------|-------------|
 | `-p` | Use PostgreSQL (also used for YugabyteDB, CockroachDB) |
+| `-ddb` | Use DocumentDB |
 | `-o` | Use Oracle JSON Duality Views |
 | `-oj` | Use Oracle JSON Collection Tables |
-| `-ddb` | Use DocumentDB |
 | `-d` | Direct table insertion (Oracle Duality Views - bypasses bug) |
 | `-j` | Use JSONB instead of JSON (PostgreSQL only) |
 | `-i` | Run indexed vs non-indexed comparison |
 | `-mv` | Use multivalue index (Oracle JCT, requires `-i`, 7x faster) |
 | `-rd` | Use realistic nested data structures |
 | `-v` | Enable data validation after each test |
+| `-latency` | Enable per-operation latency collection (for cloud DBs) |
 | `-q N` | Run query test with N array elements per document |
 | `-l N` | Run $lookup test with N links |
 | `-r N` | Run each test N times, report best |
@@ -279,65 +321,20 @@ Documents are generated in `Main.java` with:
 | `--postgresql` | Include PostgreSQL tests |
 | `--yugabytedb` | Include YugabyteDB tests |
 | `--cockroachdb` | Include CockroachDB tests |
+| `--mongodb-atlas` | Include MongoDB Atlas (requires config, enables latency) |
+| `--azure-documentdb` | Include Azure DocumentDB (requires config, enables latency) |
 | `--queries` / `-q` | Enable query tests |
 | `--no-index` | Insert-only, no indexes |
 | `--full-comparison` | Run both indexed and non-indexed |
 | `--validate` | Enable data integrity validation |
 | `--large-items` | Add 10KB, 100KB, 1000KB payload tests |
 | `--monitor` / `--no-monitor` | Enable/disable resource monitoring (default: enabled) |
-| `--monitor-interval N` | Monitoring interval in seconds (default: 5) |
+| `--monitor-interval N` | Monitoring interval in seconds |
 | `--measure-sizes` | Enable BSON/OSON size measurement |
 | `--randomize-order` | Randomize test execution order |
 | `--num-docs N` | Documents per test (default: 10000) |
 | `--num-runs N` | Runs per test (default: 3) |
 | `--batch-size N` | Batch size (default: 500) |
-
-## Features Needing Further Work
-
-### 1. Webapp Visualization (Partially Complete)
-- **Done**: Basic dashboard with Chart.js charts, filtering, CSV export, REST API
-- **Needs work**: The webapp UI is functional but basic. Could benefit from:
-  - Comparison views between test runs (side-by-side)
-  - Historical trend charts showing performance over time
-  - Drill-down into individual test run details
-  - Better handling of realistic data test types in charts
-  - Authentication/access control if deployed publicly
-
-### 2. Data Validation (Recently Added - Needs Testing)
-- **Done**: `getDocumentCount()` and `validateDocument()` implemented in all DB backends. Insertion count verification and sample document validation in Main.java. Query result reasonableness checks.
-- **Needs work**:
-  - Validation only checks document existence and ID match; could verify full payload content
-  - No validation summary report at end of benchmark run
-  - Validation results are not stored in the MongoDB results database
-  - No automated regression testing that uses validation to catch correctness issues
-  - The `-v` flag passes through Python scripts but validation output is only in Java stdout - not parsed or stored structurally
-
-### 3. Results Storage (Functional but Could Be More Robust)
-- **Done**: `ResultsStorage` class, `store_benchmark_results.py` CLI, automatic storage in both Python scripts and test.sh
-- **Needs work**:
-  - `store_benchmark_results.py` (used by test.sh) builds a simpler document schema than `run_article_benchmarks_docker.py` - schemas should be unified
-  - No deduplication or idempotency - rerunning stores duplicate results
-  - No cleanup/retention policy for old results
-  - Connection failures during storage are warnings, not errors - results can be silently lost
-
-### 4. Docker-based Testing
-- **Done**: Full Docker lifecycle management for MongoDB, DocumentDB, PostgreSQL, YugabyteDB, CockroachDB. Per-test container restart for isolation.
-- **Needs work**:
-  - Oracle databases are not Dockerized (require native install)
-  - No Docker Compose file - everything is imperative `docker run` commands
-  - DocumentDB image requires manual pull from GitHub Container Registry on first use
-  - No health check timeout configuration (hardcoded to 60s)
-
-## Oracle 23AI Special Considerations
-
-**JSON Duality Views** (`-o` flag):
-- Known bug in Oracle 23AI Free: array values treated as globally unique during insertion through Duality Views, causing silent data loss
-- Workaround: `-d` flag for direct table insertion
-
-**JSON Collection Tables** (`-oj` flag):
-- Two index types: search index (default) vs multivalue index (`-mv`, 7x faster)
-- Multivalue index requires `[*].string()` syntax in index creation
-- Query syntax differs between index types
 
 ## Development Notes
 
@@ -348,3 +345,15 @@ Documents are generated in `Main.java` with:
 3. Add Docker container configuration in `run_article_benchmarks_docker.py` DATABASES list
 4. Add container startup/readiness logic in the Docker scripts
 5. Add connection config to `config/benchmark_config.ini.example`
+6. Add connection string to `get_docker_connection_string()` in both scripts
+7. Add version detection in `scripts/version_detector.py`
+
+### Oracle 23AI Special Considerations
+
+**JSON Duality Views** (`-o` flag):
+- Known bug in Oracle 23AI Free: array values treated as globally unique during insertion through Duality Views, causing silent data loss
+- Workaround: `-d` flag for direct table insertion
+
+**JSON Collection Tables** (`-oj` flag):
+- Two index types: search index (default) vs multivalue index (`-mv`, 7x faster)
+- Multivalue index requires `[*].string()` syntax in index creation
