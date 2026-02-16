@@ -162,6 +162,19 @@ function updateTable(results) {
         const shortRunId = testRunId.length > 16 ? testRunId.substring(0, 8) + '...' : testRunId;
         const dbType = result.database?.type || 'unknown';
         const dbVersion = result.database?.version || 'unknown';
+        // Build detailed version tooltip for DocumentDB
+        let versionDisplay = dbVersion;
+        let versionTooltip = dbVersion;
+        if ((dbType === 'documentdb' || dbType === 'documentdb-azure') && result.database) {
+            const parts = [];
+            if (result.database.documentdb_version) parts.push(`DocumentDB: ${result.database.documentdb_version}`);
+            if (result.database.wire_protocol_version) parts.push(`Wire Protocol: ${result.database.wire_protocol_version}`);
+            if (result.database.postgres_version) parts.push(`PostgreSQL: ${result.database.postgres_version}`);
+            if (parts.length > 0) {
+                versionTooltip = parts.join(' | ');
+                versionDisplay = result.database.documentdb_version || dbVersion;
+            }
+        }
         const testType = result.test_config?.test_type || 'unknown';
         const payloadSize = result.test_config?.payload_size || 0;
         const insertTime = result.results?.insert_time_ms || '-';
@@ -191,7 +204,7 @@ function updateTable(results) {
             <td>${timestamp}</td>
             <td title="${testRunId}">${shortRunId}</td>
             <td>${dbType}</td>
-            <td>${dbVersion}</td>
+            <td title="${versionTooltip}">${versionDisplay}</td>
             <td>${testType}</td>
             <td>${payloadSize}B</td>
             <td>${insertTime}</td>
@@ -779,6 +792,7 @@ async function exportData() {
 function convertToCSV(results) {
     const headers = [
         'Timestamp', 'Test Run ID', 'Database Type', 'Database Version',
+        'DocumentDB Version', 'Wire Protocol Version', 'PostgreSQL Version',
         'Test Type', 'Payload Size', 'Insert Time (ms)', 'Insert Throughput',
         'Query Time (ms)', 'Avg CPU %', 'Peak CPU %', 'Avg Disk IOPS',
         'I/O Wait %', 'CPU Model', 'CPU Cores', 'Memory (GB)', 'OS'
@@ -788,6 +802,9 @@ function convertToCSV(results) {
         r.test_run_id || '',
         r.database?.type || '',
         r.database?.version || '',
+        r.database?.documentdb_version || '',
+        r.database?.wire_protocol_version || '',
+        r.database?.postgres_version || '',
         r.test_config?.test_type || '',
         r.test_config?.payload_size || '',
         r.results?.insert_time_ms || '',

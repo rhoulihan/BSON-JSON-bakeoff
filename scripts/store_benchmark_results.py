@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from results_storage import connect_to_mongodb, ResultsStorage
 from system_info_collector import get_system_info, get_ci_info
-from version_detector import get_client_library_version, get_java_version, get_docker_image_version
+from version_detector import get_client_library_version, get_java_version, get_docker_image_version, get_documentdb_detailed_versions
 
 
 def parse_benchmark_output(output: str, db_type: str, num_docs: int = 10000) -> list:
@@ -187,6 +187,22 @@ def collect_metadata(db_type: str, docker_image: Optional[str] = None,
     else:
         metadata["docker"] = {"image": None, "tag": None, "image_id": None}
 
+    # DocumentDB detailed version detection
+    if db_type in ["documentdb", "documentdb-azure"] and container_name:
+        try:
+            conn_info = {
+                'host': 'localhost',
+                'port': 10260,
+                'container': container_name,
+                'user': 'testuser',
+                'password': 'testpass',
+                'cloud': db_type == 'documentdb-azure',
+            }
+            detailed = get_documentdb_detailed_versions(conn_info)
+            metadata["documentdb_detailed_versions"] = detailed
+        except Exception as e:
+            logger.warning(f"Failed to collect DocumentDB detailed versions: {e}")
+
     return metadata
 
 
@@ -235,16 +251,27 @@ def build_mongodb_document(parsed_result: Dict[str, Any], db_type: str,
     # Build query_links value
     query_links = parsed_result.get("link_elements") if is_query else None
 
+    db_section = {
+        "type": db_type,
+        "version": db_version,
+        "docker_image": docker_info.get("image") or "unknown",
+        "docker_image_tag": docker_info.get("tag"),
+        "docker_image_id": docker_info.get("image_id")
+    }
+    # Include detailed DocumentDB version fields if available
+    ddb_versions = metadata.get("documentdb_detailed_versions", {})
+    if db_type in ["documentdb", "documentdb-azure"] and ddb_versions:
+        if ddb_versions.get("documentdb_version"):
+            db_section["documentdb_version"] = ddb_versions["documentdb_version"]
+        if ddb_versions.get("wire_protocol_version"):
+            db_section["wire_protocol_version"] = ddb_versions["wire_protocol_version"]
+        if ddb_versions.get("postgres_version"):
+            db_section["postgres_version"] = ddb_versions["postgres_version"]
+
     doc = {
         "timestamp": datetime.now(timezone.utc),
         "test_run_id": test_run_id,
-        "database": {
-            "type": db_type,
-            "version": db_version,
-            "docker_image": docker_info.get("image") or "unknown",
-            "docker_image_tag": docker_info.get("tag"),
-            "docker_image_id": docker_info.get("image_id")
-        },
+        "database": db_section,
         "client": {
             "library": client_library,
             "version": client_version

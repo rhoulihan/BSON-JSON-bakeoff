@@ -808,6 +808,30 @@ def start_database(container_name, db_type, config=None):
             if db_version:
                 version_info['database_version'] = db_version
 
+            # For DocumentDB, capture detailed version breakdown
+            if db_type == 'documentdb' and RESULTS_STORAGE_AVAILABLE:
+                try:
+                    from version_detector import get_documentdb_detailed_versions
+                    ddb_conn_info = {
+                        'host': 'localhost',
+                        'port': db_info['port'],
+                        'container': container_name,
+                        'user': connection_info.get('user', 'testuser'),
+                        'password': connection_info.get('password', 'testpass'),
+                    }
+                    detailed = get_documentdb_detailed_versions(ddb_conn_info)
+                    if detailed.get('documentdb_version'):
+                        version_info['documentdb_version'] = detailed['documentdb_version']
+                        print(f"    DocumentDB version: {detailed['documentdb_version']}")
+                    if detailed.get('wire_protocol_version'):
+                        version_info['wire_protocol_version'] = detailed['wire_protocol_version']
+                        print(f"    Wire protocol (MongoDB compat): {detailed['wire_protocol_version']}")
+                    if detailed.get('postgres_version'):
+                        version_info['postgres_version'] = detailed['postgres_version']
+                        print(f"    PostgreSQL engine: {detailed['postgres_version']}")
+                except Exception as e:
+                    print(f"    ⚠️  Warning: Could not get detailed DocumentDB versions: {e}")
+
             return True, version_info
 
         # Show progress on first few attempts
@@ -1058,16 +1082,25 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
                     db_image_id = database_info.get('image_id')
                 
                 # Build result document matching schema (will be stored to MongoDB later)
+                db_section = {
+                    'type': db_type or 'unknown',
+                    'version': db_version,
+                    'docker_image': db_image or 'unknown',
+                    'docker_image_tag': db_image_tag,
+                    'docker_image_id': db_image_id
+                }
+                # Include detailed DocumentDB version fields if available
+                if database_info and db_type in ['documentdb', 'documentdb-azure']:
+                    if database_info.get('documentdb_version'):
+                        db_section['documentdb_version'] = database_info['documentdb_version']
+                    if database_info.get('wire_protocol_version'):
+                        db_section['wire_protocol_version'] = database_info['wire_protocol_version']
+                    if database_info.get('postgres_version'):
+                        db_section['postgres_version'] = database_info['postgres_version']
                 result_doc = {
                     'timestamp': datetime.now().isoformat(),
                     'test_run_id': test_run_id or 'unknown',
-                    'database': {
-                        'type': db_type or 'unknown',
-                        'version': db_version,
-                        'docker_image': db_image or 'unknown',
-                        'docker_image_tag': db_image_tag,
-                        'docker_image_id': db_image_id
-                    },
+                    'database': db_section,
                     'client': {
                         'library': client_library,
                         'version': client_version
