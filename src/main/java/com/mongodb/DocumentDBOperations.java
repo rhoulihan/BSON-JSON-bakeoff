@@ -28,6 +28,7 @@ import javax.net.ssl.X509TrustManager;
 import java.security.cert.X509Certificate;
 import java.security.NoSuchAlgorithmException;
 import java.security.KeyManagementException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * DocumentDB implementation using MongoDB-compatible Java driver.
@@ -53,8 +54,17 @@ public class DocumentDBOperations implements DatabaseOperations {
                 || connStrLower.contains("sslallowinvalidcertificates=true");
         
         // Build MongoClientSettings with explicit SSL/TLS configuration
+        // Use generous timeouts because DocumentDB's MongoDB wire protocol layer
+        // starts after the PostgreSQL engine, causing initial connection attempts
+        // to get MongoSocketReadException ("Prematurely reached end of stream").
         MongoClientSettings.Builder settingsBuilder = MongoClientSettings.builder()
-                .applyConnectionString(connString);
+                .applyConnectionString(connString)
+                .applyToClusterSettings(builder ->
+                    builder.serverSelectionTimeout(60, TimeUnit.SECONDS))
+                .applyToSocketSettings(builder -> {
+                    builder.connectTimeout(30, TimeUnit.SECONDS);
+                    builder.readTimeout(60, TimeUnit.SECONDS);
+                });
         
         // Explicitly configure SSL settings if TLS is enabled
         // If tlsAllowInvalidCertificates=true, create a custom SSL context that accepts all certificates
