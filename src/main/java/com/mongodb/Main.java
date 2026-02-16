@@ -776,8 +776,9 @@ public class Main {
                 }
             }
 
-            // Query documents by ID for "indexed" collection
+            // Query documents by ID for the collection that was created
             if (runQueryTest) {
+                String queryCollection = runIndexTest ? "indexed" : "noindex";
                 int totalItemsFound = 0;
                 String type = runLookupTest ? "using $lookup" : useInCondition ? "using $in condition" : "using multikey index";
                 long startTime = System.currentTimeMillis();
@@ -785,16 +786,16 @@ public class Main {
                 if (!runLookupTest) {
                     if (useInCondition) {
                         for (JSONObject document : documents) {
-                            totalItemsFound += dbOperations.queryDocumentsByIdWithInCondition("indexed", document);
+                            totalItemsFound += dbOperations.queryDocumentsByIdWithInCondition(queryCollection, document);
                         }
                     } else {
                         for (String id : objectIds) {
-                            totalItemsFound += dbOperations.queryDocumentsById("indexed", id);
+                            totalItemsFound += dbOperations.queryDocumentsById(queryCollection, id);
                         }
                     }
                 } else {
                     for (String id : objectIds)
-                        totalItemsFound += dbOperations.queryDocumentsByIdUsingLookup("indexed", id);
+                        totalItemsFound += dbOperations.queryDocumentsByIdUsingLookup(queryCollection, id);
                 }
 
                 long totalQueryTime = System.currentTimeMillis() - startTime;
@@ -829,16 +830,17 @@ public class Main {
         }
 
         // Print best results if running multiple times
+        String bestResultsCollection = runIndexTest ? "indexed" : "noindex";
         if (numRuns > 1) {
             System.out.println(String.format("\n=== BEST RESULTS (%dB target size) ===", dataSize));
             if (runSingleAttrTest && bestSingleAttrTime != Long.MAX_VALUE) {
-                System.out.println(String.format("Best time to insert %d documents with %dB payload in 1 attribute into indexed: %dms", numDocs, dataSize, bestSingleAttrTime));
+                System.out.println(String.format("Best time to insert %d documents with %dB payload in 1 attribute into %s: %dms", numDocs, dataSize, bestResultsCollection, bestSingleAttrTime));
             }
             if (bestMultiAttrTime != Long.MAX_VALUE) {
                 if (useRealisticData) {
-                    System.out.println(String.format("Best time to insert %d documents with realistic nested data (~%dB) into indexed: %dms", numDocs, dataSize, bestMultiAttrTime));
+                    System.out.println(String.format("Best time to insert %d documents with realistic nested data (~%dB) into %s: %dms", numDocs, dataSize, bestResultsCollection, bestMultiAttrTime));
                 } else {
-                    System.out.println(String.format("Best time to insert %d documents with %dB payload in %d attributes into indexed: %dms", numDocs, dataSize, numAttrs, bestMultiAttrTime));
+                    System.out.println(String.format("Best time to insert %d documents with %dB payload in %d attributes into %s: %dms", numDocs, dataSize, numAttrs, bestResultsCollection, bestMultiAttrTime));
                 }
             }
             if (runQueryTest && bestQueryTime != Long.MAX_VALUE) {
