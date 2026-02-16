@@ -208,6 +208,115 @@ def _get_mongodb_version(connection_info: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def get_documentdb_detailed_versions(connection_info: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """
+    Get detailed version information for DocumentDB, including:
+    1. DocumentDB product version (from PostgreSQL extension or dpkg)
+    2. MongoDB wire protocol compatibility version (from buildInfo)
+    3. Underlying PostgreSQL version
+
+    Args:
+        connection_info: Connection information. Must include:
+            - For Docker: 'container' (container name), plus 'host', 'port', 'user', 'password'
+            - For cloud: 'connection_string'
+
+    Returns:
+        Dictionary with 'documentdb_version', 'wire_protocol_version', 'postgres_version'
+    """
+    result = {
+        'documentdb_version': None,
+        'wire_protocol_version': None,
+        'postgres_version': None
+    }
+
+    container = connection_info.get('container')
+    is_cloud = connection_info.get('cloud', False)
+
+    # 1. Wire protocol version from MongoDB buildInfo command
+    try:
+        from pymongo import MongoClient
+        import urllib.parse
+
+        if connection_info.get('connection_string'):
+            uri = connection_info['connection_string']
+        else:
+            host = connection_info.get('host', 'localhost')
+            port = connection_info.get('port', 10260)
+            user = connection_info.get('user', 'testuser')
+            password = connection_info.get('password', 'testpass')
+            encoded_password = urllib.parse.quote(password, safe='')
+            uri = (f"mongodb://{user}:{encoded_password}@{host}:{port}/"
+                   f"?directConnection=true&tls=true&tlsAllowInvalidCertificates=true")
+
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        try:
+            build_info = client.admin.command('buildInfo')
+            if build_info and 'version' in build_info:
+                result['wire_protocol_version'] = build_info['version']
+        except Exception as e:
+            logger.debug(f"buildInfo failed for DocumentDB: {e}")
+        client.close()
+    except ImportError:
+        logger.debug("pymongo not available for wire protocol version detection")
+    except Exception as e:
+        logger.debug(f"Failed to get DocumentDB wire protocol version: {e}")
+
+    # 2. DocumentDB product version from PostgreSQL extension
+    if container:
+        try:
+            # Query pg_extension for documentdb extension version
+            cmd = (f"docker exec {container} psql -h localhost -p 9712 "
+                   f"-U documentdb -d postgres -t -A "
+                   f"-c \"SELECT extversion FROM pg_extension WHERE extname = 'documentdb';\"")
+            ext_result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if ext_result.returncode == 0:
+                version = ext_result.stdout.strip()
+                # Filter out SET/etc lines from psql output
+                for line in version.split('\n'):
+                    line = line.strip()
+                    if line and re.match(r'\d+\.', line):
+                        result['documentdb_version'] = line
+                        break
+        except Exception as e:
+            logger.debug(f"Failed to get DocumentDB extension version: {e}")
+
+        # Fallback: try dpkg
+        if not result['documentdb_version']:
+            try:
+                cmd = f"docker exec {container} dpkg-query -W -f '${{Version}}' postgresql-17-documentdb 2>/dev/null"
+                dpkg_result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                if dpkg_result.returncode == 0 and dpkg_result.stdout.strip():
+                    result['documentdb_version'] = dpkg_result.stdout.strip()
+            except Exception as e:
+                logger.debug(f"Failed to get DocumentDB version from dpkg: {e}")
+
+    elif is_cloud:
+        # For Azure DocumentDB, try to extract product version from buildInfo or serverStatus
+        # The wire protocol version is already captured above; product version may be in
+        # additional fields returned by the cloud service
+        logger.debug("Cloud DocumentDB product version detection not yet supported")
+
+    # 3. PostgreSQL version
+    if container:
+        try:
+            cmd = (f"docker exec {container} psql -h localhost -p 9712 "
+                   f"-U documentdb -d postgres -t -A "
+                   f"-c \"SELECT version();\"")
+            pg_result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if pg_result.returncode == 0:
+                output = pg_result.stdout.strip()
+                for line in output.split('\n'):
+                    match = re.search(r'PostgreSQL\s+([\d.]+)', line)
+                    if match:
+                        result['postgres_version'] = match.group(1)
+                        break
+        except Exception as e:
+            logger.debug(f"Failed to get PostgreSQL version from DocumentDB container: {e}")
+
+    logger.info(f"DocumentDB detailed versions: {result}")
+    return result
+
+
 def _get_postgresql_version(connection_info: Dict[str, Any]) -> Optional[str]:
     """Get PostgreSQL version."""
     try:
@@ -493,6 +602,13 @@ def get_all_versions(db_type: str, image_name: str, container_name: Optional[str
             if version_match:
                 db_version = version_match.group(1)
         versions["database"]["version"] = db_version
+
+        # For DocumentDB types, get detailed version breakdown
+        if db_type in ["documentdb", "documentdb-azure"]:
+            detailed = get_documentdb_detailed_versions(connection_info)
+            versions["database"]["documentdb_version"] = detailed.get("documentdb_version")
+            versions["database"]["wire_protocol_version"] = detailed.get("wire_protocol_version")
+            versions["database"]["postgres_version"] = detailed.get("postgres_version")
     
     # Get client library version
     client_lib_map = {
