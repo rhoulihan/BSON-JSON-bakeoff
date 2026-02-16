@@ -48,13 +48,26 @@ async function loadVersions() {
             dbVersionSelect.appendChild(option);
         });
 
-        // Populate test run dropdown
+        // Populate test run dropdown with timestamp prefix
         const testRunSelect = document.getElementById('test-run');
-        (data.test_run_ids || []).forEach(id => {
+        (data.test_run_ids || []).forEach(entry => {
+            // Support both old format (plain string) and new format ({id, timestamp})
+            const id = typeof entry === 'string' ? entry : entry.id;
+            const timestamp = typeof entry === 'object' ? entry.timestamp : null;
             const option = document.createElement('option');
             option.value = id;
-            // Show a truncated label for long UUIDs
-            option.textContent = id.length > 24 ? id.substring(0, 8) + '...' + id.substring(id.length - 4) : id;
+            const shortId = id.length > 24 ? id.substring(0, 8) + '...' + id.substring(id.length - 4) : id;
+            if (timestamp) {
+                const d = new Date(timestamp);
+                const dateStr = d.getFullYear() + '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getDate()).padStart(2, '0') + ' ' +
+                    String(d.getHours()).padStart(2, '0') + ':' +
+                    String(d.getMinutes()).padStart(2, '0');
+                option.textContent = dateStr + ' - ' + shortId;
+            } else {
+                option.textContent = shortId;
+            }
             option.title = id;
             testRunSelect.appendChild(option);
         });

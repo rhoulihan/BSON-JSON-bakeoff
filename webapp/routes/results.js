@@ -90,13 +90,23 @@ function getResultsRoutes(db, collectionName) {
             const dbVersions = await collection.distinct('database.version');
             const clientVersions = await collection.distinct('client.version');
             const dbTypes = await collection.distinct('database.type');
-            const testRunIds = await collection.distinct('test_run_id');
+            // Get test_run_ids with their earliest timestamp for display
+            const testRunAgg = await collection.aggregate([
+                { $match: { test_run_id: { $ne: null } } },
+                { $group: { _id: '$test_run_id', first_timestamp: { $min: '$timestamp' } } },
+                { $sort: { first_timestamp: -1 } }
+            ]).toArray();
+
+            const test_run_ids = testRunAgg.map(r => ({
+                id: r._id,
+                timestamp: r.first_timestamp
+            }));
 
             res.json({
                 database_versions: dbVersions.sort(),
                 client_versions: clientVersions.sort(),
                 database_types: dbTypes.sort(),
-                test_run_ids: testRunIds.filter(id => id != null).sort().reverse()
+                test_run_ids
             });
         } catch (error) {
             console.error('Error getting versions:', error);
