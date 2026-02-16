@@ -1,0 +1,33 @@
+Including query test...
+Including index test...
+Validation mode enabled - will verify data integrity...
+Running each test 1 times, keeping best result
+Using postgresql database.
+Using json attribute type for data.
+CockroachDB CCL v25.4.2 (aarch64-unknown-linux-gnu, built 2025/12/16 12:07:47, go1.23.12 X:nocoverageredesign)
+  Loaded 2000 documents from cache: document_cache/standard_s100_n2000_a10_l10.json
+  Base document size (no payload): 89B
+Time taken to insert 2000 documents with 100B payload in 1 attribute into indexed: 494ms
+Time taken to insert 2000 documents with 100B payload in 10 attributes into indexed: 445ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 5379ms
+Total items found: 19952
+
+  Validating query results...
+  ✓ Query count verified: 19952 items found (max possible: 20000)
+  Loaded 2000 documents from cache: document_cache/standard_s1000_n2000_a10_l10.json
+  Base document size (no payload): 89B
+Time taken to insert 2000 documents with 1000B payload in 1 attribute into indexed: 1011ms
+Time taken to insert 2000 documents with 1000B payload in 10 attributes into indexed: 1140ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 15961ms
+Total items found: 19954
+
+  Validating query results...
+  ✓ Query count verified: 19954 items found (max possible: 20000)
+
+Done.
