@@ -43,6 +43,12 @@
                 <artifactId>ucp</artifactId>
                 <version>23.4.0.24.05</version>
             </dependency>
+            <!-- SLF4J NOP binding to silence MongoDB driver SLF4J warning -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-nop</artifactId>
+                <version>2.0.9</version>
+            </dependency>
         </dependencies>
 
     <build>
