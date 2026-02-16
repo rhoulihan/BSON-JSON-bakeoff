@@ -549,7 +549,7 @@ def initialize_database(container_name: str, db_type: str) -> bool:
         print(f"    ⚠️  Database initialization failed: {e}")
         return False
 
-def _verify_documentdb_operational(port, container_name="documentdb-benchmark", max_attempts=10, retry_interval=2):
+def _verify_documentdb_operational(port, container_name="documentdb-benchmark", max_attempts=15, retry_interval=3):
     """Verify DocumentDB can perform actual read/write operations, not just accept connections.
 
     Tries pymongo first for a full MongoDB wire protocol check, then falls back to
@@ -653,6 +653,11 @@ def start_database(container_name, db_type, config=None):
                 if not _verify_documentdb_operational(db_info['port'], container_name):
                     print(f"    ⚠️  Warning: DocumentDB accepted connections but operational verification failed")
                     # Continue anyway - the benchmark will fail with a clear error if it's not ready
+                else:
+                    # Allow the MongoDB wire protocol to fully stabilize after verification.
+                    # DocumentDB's protocol layer can briefly become unresponsive after initial connections.
+                    print(f"    Waiting for DocumentDB wire protocol to stabilize...")
+                    time.sleep(10)
 
             # Initialize database (create test db, users, etc.)
             if not initialize_database(container_name, db_type):
@@ -1458,7 +1463,7 @@ def ensure_config_properties():
             "postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password\n"
             "\n"
             "# DocumentDB Connection (MongoDB-compatible)\n"
-            "documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256\n"
+            "documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000\n"
         )
         print(f"✓ Generated {config_file}")
 
