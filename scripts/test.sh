@@ -22,7 +22,7 @@ mongodb.connection.string=mongodb://localhost:27017
 postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password
 
 # DocumentDB Connection (MongoDB-compatible)
-documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256
+documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true
 CONFIGEOF
     echo "✓ Generated config.properties with Docker defaults"
 fi
@@ -154,7 +154,7 @@ store_results() {
 get_connection_string() {
     case "$1" in
         mongodb)       echo "mongodb://localhost:27017" ;;
-        documentdb)    echo "mongodb://testuser:testpass@localhost:10260/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000" ;;
+        documentdb)    echo "mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000" ;;
         postgresql)    echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
         yugabytedb)    echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
         cockroachdb)   echo "jdbc:postgresql://localhost:5432/test?user=postgres&password=password" ;;
@@ -282,16 +282,17 @@ if [ "$documentdb_image_ready" = true ]; then
     # and verify with an actual authenticated MongoDB ping, not just a port check
     # Readiness check: try pymongo ping, then mongosh from host, then psql inside container
     # (DocumentDB is PostgreSQL-based, so psql on internal port 9712 verifies the engine is ready)
-    if wait_for_db "documentdb" "python3 -c \"from pymongo import MongoClient; c=MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true', serverSelectionTimeoutMS=3000); c.admin.command('ping')\" 2>/dev/null || mongosh --host localhost --port 10260 --username testuser --password testpass --authenticationDatabase admin --quiet --eval 'db.runCommand({ping:1})' 2>/dev/null || docker exec documentdb psql -h localhost -p 9712 -U testuser -d postgres -c 'SELECT 1' 2>/dev/null" 90; then
+    # DocumentDB gateway requires TLS - all pymongo/mongosh checks must use tls=true&tlsAllowInvalidCertificates=true
+    if wait_for_db "documentdb" "python3 -c \"from pymongo import MongoClient; c=MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true', serverSelectionTimeoutMS=3000); c.admin.command('ping')\" 2>/dev/null || mongosh --host localhost --port 10260 --username testuser --password testpass --authenticationDatabase admin --tls --tlsAllowInvalidCertificates --quiet --eval 'db.runCommand({ping:1})' 2>/dev/null || docker exec documentdb psql -h localhost -p 9712 -U testuser -d postgres -c 'SELECT 1' 2>/dev/null" 90; then
         # Verify DocumentDB can actually perform operations (not just accept connections)
-        # Try pymongo for full MongoDB protocol check, fall back to psql inside container
+        # Try pymongo for full MongoDB wire protocol check (with TLS), fall back to psql inside container
         log_info "Verifying DocumentDB is fully operational..."
         documentdb_operational=false
-        for verify_attempt in $(seq 1 10); do
-            # Try pymongo first (full MongoDB wire protocol verification)
+        for verify_attempt in $(seq 1 15); do
+            # Try pymongo first (full MongoDB wire protocol verification with TLS)
             if python3 -c "
 from pymongo import MongoClient
-c = MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true', serverSelectionTimeoutMS=5000)
+c = MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true', serverSelectionTimeoutMS=5000)
 db = c['_readiness_check']
 db['_test'].insert_one({'check': 1})
 db['_test'].find_one({'check': 1})
@@ -308,7 +309,7 @@ print('ok')
                 documentdb_operational=true
                 break
             fi
-            sleep 2
+            sleep 3
         done
         if [ "$documentdb_operational" = true ]; then
             run_benchmark "documentdb" "-ddb" "$@" || overall_success=false

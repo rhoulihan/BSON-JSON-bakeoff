@@ -6,8 +6,9 @@
 mongodb.connection.string=mongodb://localhost:27017
 
 # DocumentDB Connection (MongoDB-compatible)
-# Format: mongodb://[username]:[password]@[host]:[port]/?directConnection=true
-documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true
+# Format: mongodb://[username]:[password]@[host]:[port]/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true
+# TLS is required - DocumentDB gateway uses auto-generated certificates
+documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true
 
 # PostgreSQL Connection
 # Format: jdbc:postgresql://[host]:[port]/[database]?user=[username]&password=[password]
