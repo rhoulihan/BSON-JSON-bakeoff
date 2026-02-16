@@ -1,0 +1,205 @@
+
+========================================
+  Docker-Based Database Benchmark
+========================================
+Test Run ID: test.sh-20260216-114812-213188
+Store Results: false
+Log Directory: /home/matt/.multiclaude/wts/BSON-JSON-bakeoff/proud-platypus/tmp/test_logs
+Arguments: -q 10 -i -s 100,1000 -v -r 1 -b 100 2000
+========================================
+
+[0;34m[INFO][0m Starting MongoDB container...
+7a07d24bee20d6a7022d5f0f12c7df11d334c7fa3c102124e962539f9cb70da7
+[0;34m[INFO][0m Waiting for db to be ready...
+[0;32m[SUCCESS][0m db is ready
+[0;34m[INFO][0m Running mongodb benchmark...
+========================================
+Database: mongodb
+Timestamp: Mon 16 Feb 11:48:15 UTC 2026
+Test Run ID: test.sh-20260216-114812-213188
+Extra flags:  -q 10 -i -s 100,1000 -v -r 1 -b 100 2000
+========================================
+Including query test...
+Including index test...
+Validation mode enabled - will verify data integrity...
+Running each test 1 times, keeping best result
+Using mongodb database.
+Feb 16, 2026 11:48:15 AM com.mongodb.internal.diagnostics.logging.Loggers shouldUseSLF4J
+WARNING: SLF4J not found on the classpath.  Logging is disabled for the 'org.mongodb.driver' component
+  Cache miss or invalid cache file: document_cache/standard_s100_n2000_a10_l10.json
+  Generating 2000 documents with IDs and targets...
+  Saved 2000 documents to cache: document_cache/standard_s100_n2000_a10_l10.json
+Created index on indexed.targets
+  Base document size (no payload): 89B
+Binding: 267
+Binding: 264
+Binding: 268
+Binding: 265
+Binding: 263
+Binding: 263
+Binding: 268
+Binding: 265
+Binding: 265
+Binding: 269
+Time taken to insert 2000 documents with 100B payload in 1 attribute into indexed: 214ms
+Created index on indexed.targets
+Binding: 376
+Binding: 373
+Binding: 377
+Binding: 374
+Binding: 372
+Binding: 372
+Binding: 377
+Binding: 374
+Binding: 374
+Binding: 378
+Time taken to insert 2000 documents with 100B payload in 10 attributes into indexed: 178ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 766ms
+Total items found: 20000
+
+  Validating query results...
+  ✓ Query count verified: 20000 items found (max possible: 20000)
+  Cache miss or invalid cache file: document_cache/standard_s1000_n2000_a10_l10.json
+  Generating 2000 documents with IDs and targets...
+  Saved 2000 documents to cache: document_cache/standard_s1000_n2000_a10_l10.json
+Created index on indexed.targets
+  Base document size (no payload): 89B
+Binding: 1167
+Binding: 1164
+Binding: 1168
+Binding: 1165
+Binding: 1163
+Binding: 1163
+Binding: 1168
+Binding: 1165
+Binding: 1165
+Binding: 1169
+Time taken to insert 2000 documents with 1000B payload in 1 attribute into indexed: 162ms
+Created index on indexed.targets
+Binding: 1276
+Binding: 1273
+Binding: 1277
+Binding: 1274
+Binding: 1272
+Binding: 1272
+Binding: 1277
+Binding: 1274
+Binding: 1274
+Binding: 1278
+Time taken to insert 2000 documents with 1000B payload in 10 attributes into indexed: 165ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 628ms
+Total items found: 20000
+
+  Validating query results...
+  ✓ Query count verified: 20000 items found (max possible: 20000)
+
+Done.
+[0;32m[SUCCESS][0m mongodb benchmark completed
+db
+
+[0;34m[INFO][0m Starting DocumentDB container...
+d9caed0edcccf9e769813148d350222bcf02f00a128af86ba32b67525bf6503d
+[0;34m[INFO][0m Waiting for documentdb to be ready...
+[0;32m[SUCCESS][0m documentdb is ready
+[0;34m[INFO][0m Verifying DocumentDB is fully operational...
+[0;32m[SUCCESS][0m DocumentDB is fully operational (psql)
+[0;34m[INFO][0m Running documentdb benchmark...
+========================================
+Database: documentdb
+Timestamp: Mon 16 Feb 11:48:25 UTC 2026
+Test Run ID: test.sh-20260216-114812-213188
+Extra flags: -ddb -q 10 -i -s 100,1000 -v -r 1 -b 100 2000
+========================================
+Including query test...
+Including index test...
+Validation mode enabled - will verify data integrity...
+Running each test 1 times, keeping best result
+Using documentdb database.
+Feb 16, 2026 11:48:25 AM com.mongodb.internal.diagnostics.logging.Loggers shouldUseSLF4J
+WARNING: SLF4J not found on the classpath.  Logging is disabled for the 'org.mongodb.driver' component
+  Loaded 2000 documents from cache: document_cache/standard_s100_n2000_a10_l10.json
+Exception in thread "main" com.mongodb.MongoTimeoutException: Timed out while waiting for a server that matches WritableServerSelector. Client view of cluster state is {type=UNKNOWN, servers=[{address=localhost:10260, type=UNKNOWN, state=CONNECTING, exception={com.mongodb.MongoSocketReadException: Prematurely reached end of stream}}]
+	at com.mongodb.internal.connection.BaseCluster.logAndThrowTimeoutException(BaseCluster.java:427)
+	at com.mongodb.internal.connection.BaseCluster.lambda$selectServer$0(BaseCluster.java:154)
+	at com.mongodb.internal.time.Timeout.lambda$onExistsAndExpired$16(Timeout.java:236)
+	at com.mongodb.internal.time.Timeout.lambda$run$10(Timeout.java:201)
+	at com.mongodb.internal.time.TimePoint.checkedCall(TimePoint.java:99)
+	at com.mongodb.internal.time.Timeout.call(Timeout.java:174)
+	at com.mongodb.internal.time.Timeout.run(Timeout.java:194)
+	at com.mongodb.internal.time.Timeout.onExistsAndExpired(Timeout.java:233)
+	at com.mongodb.internal.time.Timeout.onExpired(Timeout.java:226)
+	at com.mongodb.internal.connection.BaseCluster.selectServer(BaseCluster.java:153)
+	at com.mongodb.internal.connection.SingleServerCluster.selectServer(SingleServerCluster.java:47)
+	at com.mongodb.internal.binding.ClusterBinding.getWriteConnectionSource(ClusterBinding.java:100)
+	at com.mongodb.client.internal.ClientSessionBinding.getConnectionSource(ClientSessionBinding.java:108)
+	at com.mongodb.client.internal.ClientSessionBinding.getWriteConnectionSource(ClientSessionBinding.java:98)
+	at com.mongodb.internal.operation.SyncOperationHelper.withConnection(SyncOperationHelper.java:110)
+	at com.mongodb.internal.operation.DropCollectionOperation.execute(DropCollectionOperation.java:92)
+	at com.mongodb.internal.operation.DropCollectionOperation.execute(DropCollectionOperation.java:62)
+	at com.mongodb.client.internal.MongoClusterImpl$OperationExecutorImpl.execute(MongoClusterImpl.java:446)
+	at com.mongodb.client.internal.MongoCollectionImpl.executeDrop(MongoCollectionImpl.java:893)
+	at com.mongodb.client.internal.MongoCollectionImpl.drop(MongoCollectionImpl.java:824)
+	at com.mongodb.DocumentDBOperations.dropAndCreateCollections(DocumentDBOperations.java:115)
+	at com.mongodb.Main.handleDataInsertions(Main.java:676)
+	at com.mongodb.Main.main(Main.java:240)
+[0;31m[ERROR][0m documentdb benchmark failed (exit code: 1)
+documentdb
+
+[0;34m[INFO][0m Starting PostgreSQL container...
+5c0612b62bd75a1910d6079c75bfcd24384d7c028c23d4828322d6bec4364e50
+[0;34m[INFO][0m Waiting for db to be ready...
+[0;32m[SUCCESS][0m db is ready
+CREATE DATABASE
+[0;34m[INFO][0m Running postgresql benchmark...
+========================================
+Database: postgresql
+Timestamp: Mon 16 Feb 11:48:58 UTC 2026
+Test Run ID: test.sh-20260216-114812-213188
+Extra flags: -p -q 10 -i -s 100,1000 -v -r 1 -b 100 2000
+========================================
+Including query test...
+Including index test...
+Validation mode enabled - will verify data integrity...
+Running each test 1 times, keeping best result
+Using postgresql database.
+Using json attribute type for data.
+PostgreSQL 18.1 (Debian 18.1-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+  Loaded 2000 documents from cache: document_cache/standard_s100_n2000_a10_l10.json
+  Base document size (no payload): 89B
+Time taken to insert 2000 documents with 100B payload in 1 attribute into indexed: 105ms
+Time taken to insert 2000 documents with 100B payload in 10 attributes into indexed: 79ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 1211ms
+Total items found: 19962
+
+  Validating query results...
+  ✓ Query count verified: 19962 items found (max possible: 20000)
+  Loaded 2000 documents from cache: document_cache/standard_s1000_n2000_a10_l10.json
+  Base document size (no payload): 89B
+Time taken to insert 2000 documents with 1000B payload in 1 attribute into indexed: 350ms
+Time taken to insert 2000 documents with 1000B payload in 10 attributes into indexed: 337ms
+  Validating insertion results...
+  ✓ Document count verified: 2000
+  ✓ Sample validation: 20/20 documents verified
+Total time taken to query related documents for 2000 ID's with 10 element link arrays using multikey index: 1389ms
+Total items found: 19949
+
+  Validating query results...
+  ✓ Query count verified: 19949 items found (max possible: 20000)
+
+Done.
+[0;32m[SUCCESS][0m postgresql benchmark completed
+db
+
+[0;34m[INFO][0m Starting YugabyteDB container...
+7eef790d6fb489e6d6c000e3fcbc4ae0d39abcdaad146f3c6dfa2233d80080e2
+[0;34m[INFO][0m Waiting for db to be ready...
+[0;32m[SUCCESS][0m db is ready
