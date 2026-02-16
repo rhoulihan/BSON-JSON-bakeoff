@@ -22,7 +22,7 @@ mongodb.connection.string=mongodb://localhost:27017
 postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password
 
 # DocumentDB Connection (MongoDB-compatible)
-documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000
+documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256
 CONFIGEOF
     echo "✓ Generated config.properties with Docker defaults"
 fi
@@ -311,10 +311,6 @@ print('ok')
             sleep 2
         done
         if [ "$documentdb_operational" = true ]; then
-            # Allow the MongoDB wire protocol to fully stabilize after verification.
-            # DocumentDB's protocol layer can briefly become unresponsive after initial connections.
-            log_info "Waiting for DocumentDB wire protocol to stabilize..."
-            sleep 10
             run_benchmark "documentdb" "-ddb" "$@" || overall_success=false
         else
             log_error "DocumentDB accepted connections but failed operational verification"
