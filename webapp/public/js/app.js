@@ -9,9 +9,14 @@ let queryChart = null;
 let throughputChart = null;
 let latencyPercentileChart = null;
 let latencyTimelineChart = null;
+let resourceCpuChart = null;
+let resourceIopsChart = null;
 
 // Cloud database types that have latency metrics
 const CLOUD_DB_TYPES = ['mongodb-cloud', 'documentdb-azure'];
+
+// Store loaded results for detail view access
+let currentResults = [];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,7 +29,7 @@ async function loadVersions() {
     try {
         const response = await fetch(`${API_BASE}/meta/versions`);
         const data = await response.json();
-        
+
         // Populate database type dropdown
         const dbTypeSelect = document.getElementById('database-type');
         data.database_types.forEach(type => {
@@ -33,7 +38,7 @@ async function loadVersions() {
             option.textContent = type;
             dbTypeSelect.appendChild(option);
         });
-        
+
         // Populate database version dropdown
         const dbVersionSelect = document.getElementById('database-version');
         data.database_versions.forEach(version => {
@@ -62,7 +67,7 @@ async function loadResults() {
     try {
         const filters = getFilters();
         let allResults = [];
-        
+
         // If no database type filter is applied, fetch results from all database types
         if (!filters.database_type) {
             // Get all available database types
@@ -70,7 +75,7 @@ async function loadResults() {
             const versionsData = await versionsResponse.json();
             const databaseTypes = versionsData.database_types || [];
             console.log('Found database types:', databaseTypes);
-            
+
             // Fetch results for each database type
             const fetchPromises = databaseTypes.map(async (dbType) => {
                 const queryParams = new URLSearchParams();
@@ -81,18 +86,18 @@ async function loadResults() {
                 if (filters.end_date) queryParams.append('end_date', filters.end_date);
                 // Fetch a reasonable number of results per database type
                 queryParams.append('limit', '500');
-                
+
                 const response = await fetch(`${API_BASE}?${queryParams}`);
                 const data = await response.json();
                 const results = data.results || [];
                 console.log(`Fetched ${results.length} results for database type: ${dbType}`);
                 return results;
             });
-            
+
             const resultsArrays = await Promise.all(fetchPromises);
             allResults = resultsArrays.flat();
             console.log(`Total results fetched: ${allResults.length}`);
-            
+
             // Sort by timestamp descending (most recent first)
             allResults.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         } else {
@@ -109,9 +114,11 @@ async function loadResults() {
             const data = await response.json();
             allResults = data.results || [];
         }
-        
+
+        currentResults = allResults;
         updateTable(allResults);
         updateCharts(allResults);
+        updateResourceComparison(allResults);
     } catch (error) {
         console.error('Error loading results:', error);
         showError('Failed to load results: ' + error.message);
@@ -129,17 +136,27 @@ function getFilters() {
     };
 }
 
+// Helper: format a metric value or return null for N/A
+function fmtMetric(val, decimals) {
+    if (val == null || val === undefined) return null;
+    return typeof val === 'number' ? val.toFixed(decimals !== undefined ? decimals : 1) : val;
+}
+
 function updateTable(results) {
     const tbody = document.getElementById('results-tbody');
     tbody.innerHTML = '';
-    
+
     if (results.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="loading">No results found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" class="loading">No results found</td></tr>';
         return;
     }
 
-    results.forEach(result => {
+    results.forEach((result, index) => {
         const row = document.createElement('tr');
+        row.className = 'clickable-row';
+        row.dataset.resultIndex = index;
+        row.addEventListener('click', () => showDetailModal(result));
+
         const timestamp = new Date(result.timestamp).toLocaleString();
         const testRunId = result.test_run_id || '-';
         const shortRunId = testRunId.length > 16 ? testRunId.substring(0, 8) + '...' : testRunId;
@@ -161,6 +178,15 @@ function updateTable(results) {
             }
         }
 
+        // Resource metrics (graceful degradation for missing data)
+        const rm = result.resource_metrics;
+        const avgCpu = fmtMetric(rm?.avg_cpu_percent);
+        const peakCpu = fmtMetric(rm?.max_cpu_percent);
+        const diskIops = fmtMetric(rm?.avg_disk_iops, 0);
+        const ioWait = fmtMetric(rm?.avg_iowait_percent);
+
+        const naCell = (val) => val !== null ? `<td>${val}</td>` : '<td class="metric-na">N/A</td>';
+
         row.innerHTML = `
             <td>${timestamp}</td>
             <td title="${testRunId}">${shortRunId}</td>
@@ -172,8 +198,226 @@ function updateTable(results) {
             <td>${insertThroughput}</td>
             <td>${queryTime}</td>
             <td>${latencyDisplay}</td>
+            ${naCell(avgCpu)}
+            ${naCell(peakCpu)}
+            ${naCell(diskIops)}
+            ${naCell(ioWait)}
         `;
         tbody.appendChild(row);
+    });
+}
+
+// --- Detail Modal (drill-down view) ---
+
+function showDetailModal(result) {
+    const modal = document.getElementById('detail-modal');
+    const title = document.getElementById('modal-title');
+    const dbType = result.database?.type || 'unknown';
+    const dbVersion = result.database?.version || '';
+    title.textContent = `${dbType} ${dbVersion} - Test Result Details`;
+
+    // Test Configuration
+    populateDetailGrid('detail-test-config', [
+        ['Test Type', result.test_config?.test_type],
+        ['Payload Size', result.test_config?.payload_size != null ? result.test_config.payload_size + 'B' : null],
+        ['Num Documents', result.test_config?.num_docs],
+        ['Batch Size', result.test_config?.batch_size],
+        ['Num Runs', result.test_config?.num_runs],
+        ['Num Attributes', result.test_config?.num_attributes],
+        ['Indexed', result.test_config?.indexed != null ? String(result.test_config.indexed) : null],
+        ['Query Test', result.test_config?.query_test != null ? String(result.test_config.query_test) : null],
+        ['Query Links', result.test_config?.query_links],
+    ]);
+
+    // Performance Results
+    populateDetailGrid('detail-results', [
+        ['Insert Time', result.results?.insert_time_ms != null ? result.results.insert_time_ms + ' ms' : null],
+        ['Insert Throughput', result.results?.insert_throughput != null ? Math.round(result.results.insert_throughput) + ' docs/sec' : null],
+        ['Query Time', result.results?.query_time_ms != null ? result.results.query_time_ms + ' ms' : null],
+        ['Query Throughput', result.results?.query_throughput != null ? Math.round(result.results.query_throughput) + ' queries/sec' : null],
+        ['Success', result.results?.success != null ? String(result.results.success) : null],
+        ['Error', result.results?.error],
+    ]);
+
+    // System Information
+    const si = result.system_info;
+    populateDetailGrid('detail-system-info', [
+        ['CPU Model', si?.cpu?.model],
+        ['CPU Cores', si?.cpu?.cores],
+        ['CPU Threads', si?.cpu?.threads],
+        ['Memory (Total)', si?.memory?.total_gb != null ? si.memory.total_gb.toFixed(1) + ' GB' : null],
+        ['Memory (Available)', si?.memory?.available_gb != null ? si.memory.available_gb.toFixed(1) + ' GB' : null],
+        ['OS', si?.os?.name],
+        ['OS Version', si?.os?.version],
+        ['Kernel', si?.os?.kernel],
+        ['Hostname', si?.hostname],
+        ['Java Version', si?.java_version],
+    ]);
+
+    // Resource Metrics
+    const rm = result.resource_metrics;
+    populateDetailGrid('detail-resource-metrics', [
+        ['Avg CPU %', fmtMetric(rm?.avg_cpu_percent)],
+        ['Peak CPU %', fmtMetric(rm?.max_cpu_percent)],
+        ['Avg I/O Wait %', fmtMetric(rm?.avg_iowait_percent)],
+        ['Avg Disk IOPS', fmtMetric(rm?.avg_disk_iops, 0)],
+        ['Max Disk IOPS', fmtMetric(rm?.max_disk_iops, 0)],
+        ['Samples', rm?.samples],
+    ]);
+
+    // CI Information
+    const ci = result.ci_info;
+    populateDetailGrid('detail-ci-info', [
+        ['CI Run', ci?.ci_run != null ? String(ci.ci_run) : null],
+        ['CI Platform', ci?.ci_platform],
+        ['Commit Hash', ci?.commit_hash],
+        ['Branch', ci?.branch],
+    ]);
+
+    modal.style.display = 'flex';
+}
+
+function populateDetailGrid(elementId, items) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = '';
+    let hasAnyData = false;
+    items.forEach(([label, value]) => {
+        const div = document.createElement('div');
+        div.className = 'detail-item';
+        const isNA = value == null || value === undefined || value === '';
+        if (!isNA) hasAnyData = true;
+        div.innerHTML = `
+            <span class="detail-label">${label}</span>
+            <span class="detail-value${isNA ? ' na' : ''}">${isNA ? 'N/A' : value}</span>
+        `;
+        container.appendChild(div);
+    });
+    // Show notice if all values are N/A
+    if (!hasAnyData) {
+        container.innerHTML = '<div class="detail-item"><span class="detail-value na">No data available</span></div>';
+    }
+}
+
+function closeDetailModal() {
+    document.getElementById('detail-modal').style.display = 'none';
+}
+
+// --- Resource Utilization Comparison ---
+
+function updateResourceComparison(results) {
+    const section = document.getElementById('resource-comparison-section');
+
+    // Check if any results have resource metrics
+    const resultsWithMetrics = results.filter(r =>
+        r.resource_metrics && (r.resource_metrics.avg_cpu_percent != null || r.resource_metrics.avg_disk_iops != null)
+    );
+
+    if (resultsWithMetrics.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    // Group by database type, averaging resource metrics
+    const byDbType = {};
+    resultsWithMetrics.forEach(r => {
+        const dbType = r.database?.type || 'unknown';
+        if (!byDbType[dbType]) {
+            byDbType[dbType] = { avgCpu: [], peakCpu: [], avgIops: [], maxIops: [], ioWait: [] };
+        }
+        const rm = r.resource_metrics;
+        if (rm.avg_cpu_percent != null) byDbType[dbType].avgCpu.push(rm.avg_cpu_percent);
+        if (rm.max_cpu_percent != null) byDbType[dbType].peakCpu.push(rm.max_cpu_percent);
+        if (rm.avg_disk_iops != null) byDbType[dbType].avgIops.push(rm.avg_disk_iops);
+        if (rm.max_disk_iops != null) byDbType[dbType].maxIops.push(rm.max_disk_iops);
+        if (rm.avg_iowait_percent != null) byDbType[dbType].ioWait.push(rm.avg_iowait_percent);
+    });
+
+    const dbTypes = Object.keys(byDbType).sort();
+    if (dbTypes.length < 1) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+
+    const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+    const labels = dbTypes;
+    const colors = dbTypes.map(t => getColorForDatabaseType(t));
+
+    // CPU Chart (avg + peak as grouped bar)
+    const cpuCtx = document.getElementById('resource-cpu-chart').getContext('2d');
+    if (resourceCpuChart) resourceCpuChart.destroy();
+    resourceCpuChart = new Chart(cpuCtx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Avg CPU %',
+                    data: dbTypes.map(t => +avg(byDbType[t].avgCpu).toFixed(1)),
+                    backgroundColor: colors.map(c => c + 'CC'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Peak CPU %',
+                    data: dbTypes.map(t => +avg(byDbType[t].peakCpu).toFixed(1)),
+                    backgroundColor: colors.map(c => c + '66'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                },
+                {
+                    label: 'I/O Wait %',
+                    data: dbTypes.map(t => +avg(byDbType[t].ioWait).toFixed(2)),
+                    backgroundColor: dbTypes.map(() => '#ff6384AA'),
+                    borderColor: dbTypes.map(() => '#ff6384'),
+                    borderWidth: 1,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { title: { display: true, text: 'CPU & I/O Wait by Database' } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Percentage (%)' } }
+            }
+        }
+    });
+
+    // IOPS Chart
+    const iopsCtx = document.getElementById('resource-iops-chart').getContext('2d');
+    if (resourceIopsChart) resourceIopsChart.destroy();
+    resourceIopsChart = new Chart(iopsCtx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Avg Disk IOPS',
+                    data: dbTypes.map(t => +avg(byDbType[t].avgIops).toFixed(0)),
+                    backgroundColor: colors.map(c => c + 'CC'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Max Disk IOPS',
+                    data: dbTypes.map(t => +avg(byDbType[t].maxIops).toFixed(0)),
+                    backgroundColor: colors.map(c => c + '66'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { title: { display: true, text: 'Disk IOPS by Database' } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'IOPS' } }
+            }
+        }
     });
 }
 
@@ -183,6 +427,8 @@ function getColorForDatabaseType(dbType) {
         'mongodb': '#667eea',
         'documentdb': '#764ba2',
         'postgresql': '#f093fb',
+        'yugabytedb': '#43a047',
+        'cockroachdb': '#ff9800',
         'oracle': '#4facfe',
         'oracle23ai': '#00d2ff',
         'mongodb-cloud': '#2ecc71',
@@ -199,20 +445,20 @@ function sortAndAlignData(groups, payloadKey, dataKey) {
     Object.values(groups).forEach(group => {
         (group[payloadKey] || []).forEach(size => allPayloadSizes.add(size));
     });
-    
+
     // Sort payload sizes numerically
     const sortedPayloadSizes = Array.from(allPayloadSizes).sort((a, b) => a - b);
-    
+
     // Create labels
     const labels = sortedPayloadSizes.map(s => `${s}B`);
-    
+
     // Align data for each group
     const alignedDatasets = Object.values(groups).map((group) => {
         const payloadArray = group[payloadKey] || [];
         const dataArray = group[dataKey] || [];
         const dbType = group.dbType || 'unknown';
         const color = getColorForDatabaseType(dbType);
-        
+
         // Create a map of payload size to array of data values (to handle multiple values per size)
         const dataMap = new Map();
         payloadArray.forEach((size, idx) => {
@@ -223,7 +469,7 @@ function sortAndAlignData(groups, payloadKey, dataKey) {
                 dataMap.get(size).push(dataArray[idx]);
             }
         });
-        
+
         // Create aligned data array - average multiple values for the same payload size
         const alignedData = sortedPayloadSizes.map(size => {
             const values = dataMap.get(size);
@@ -234,7 +480,7 @@ function sortAndAlignData(groups, payloadKey, dataKey) {
             const sum = values.reduce((a, b) => a + b, 0);
             return sum / values.length;
         });
-        
+
         const dataset = {
             label: group.label,
             data: alignedData,
@@ -242,7 +488,7 @@ function sortAndAlignData(groups, payloadKey, dataKey) {
             borderColor: color,
             borderWidth: 2
         };
-        
+
         console.log(`Creating dataset for ${dataKey}:`, {
             label: dataset.label,
             dbType: dbType,
@@ -250,10 +496,10 @@ function sortAndAlignData(groups, payloadKey, dataKey) {
             dataPoints: alignedData.filter(d => d !== null).length,
             totalDataPoints: alignedData.length
         });
-        
+
         return dataset;
     });
-    
+
     console.log(`Created ${alignedDatasets.length} datasets for ${dataKey}`);
     return { labels, datasets: alignedDatasets };
 }
@@ -262,12 +508,12 @@ function updateCharts(results) {
     // Filter successful results
     const successful = results.filter(r => r.results?.success);
     console.log(`Updating charts with ${successful.length} successful results out of ${results.length} total`);
-    
+
     // Debug: Check mongodb vs documentdb results
     const mongodbResults = successful.filter(r => r.database?.type?.toLowerCase() === 'mongodb');
     const documentdbResults = successful.filter(r => r.database?.type?.toLowerCase() === 'documentdb');
     console.log(`MongoDB results: ${mongodbResults.length}, DocumentDB results: ${documentdbResults.length}`);
-    
+
     // Check test_run_id for mongodb results
     if (mongodbResults.length > 0) {
         const mongodbTestRunIds = new Set(mongodbResults.map(r => r.test_run_id || 'missing'));
@@ -279,7 +525,7 @@ function updateCharts(results) {
             hasThroughput: !!mongodbResults[0].results?.insert_throughput
         });
     }
-    
+
     // Group by test_run_id AND database type (since same test_run_id can have different db types)
     const grouped = {};
     const dbTypesSeen = new Set();
@@ -290,7 +536,7 @@ function updateCharts(results) {
         // Include database type in the key to separate MongoDB and DocumentDB results with same test_run_id
         const key = `${testRunId}-${dbType}`;
         dbTypesSeen.add(dbType);
-        
+
         // Count results by database type
         if (!dbTypeCounts[dbType]) {
             dbTypeCounts[dbType] = { total: 0, withInsertTime: 0, withQueryTime: 0, withThroughput: 0 };
@@ -299,7 +545,7 @@ function updateCharts(results) {
         if (result.results?.insert_time_ms) dbTypeCounts[dbType].withInsertTime++;
         if (result.results?.query_time_ms) dbTypeCounts[dbType].withQueryTime++;
         if (result.results?.insert_throughput) dbTypeCounts[dbType].withThroughput++;
-        
+
         if (!grouped[key]) {
             // Create a descriptive label with test_run_id and database info
             const dbVersion = result.database?.version || 'unknown';
@@ -315,18 +561,18 @@ function updateCharts(results) {
                 throughputPayloadSizes: []
             };
         }
-        
+
         if (result.results?.insert_time_ms) {
             grouped[key].insertTimes.push(result.results.insert_time_ms);
             grouped[key].payloadSizes.push(result.test_config?.payload_size || 0);
         }
-        
+
         if (result.results?.query_time_ms) {
             grouped[key].queryTimes.push(result.results.query_time_ms);
             grouped[key].queryPayloadSizes = grouped[key].queryPayloadSizes || [];
             grouped[key].queryPayloadSizes.push(result.test_config?.payload_size || 0);
         }
-        
+
         if (result.results?.insert_throughput) {
             grouped[key].throughputs.push(result.results.insert_throughput);
             // Track payload size for throughputs (use same as insert if available, otherwise track separately)
@@ -336,7 +582,7 @@ function updateCharts(results) {
             grouped[key].throughputPayloadSizes.push(result.test_config?.payload_size || 0);
         }
     });
-    
+
     console.log(`Database types found in results:`, Array.from(dbTypesSeen));
     console.log('Database type counts:', dbTypeCounts);
     console.log(`Number of test runs (groups): ${Object.keys(grouped).length}`);
@@ -347,12 +593,12 @@ function updateCharts(results) {
         insertCount: grouped[key].insertTimes.length,
         queryCount: grouped[key].queryTimes.length
     })));
-    
+
     // Check if mongodb results are being grouped
     const mongodbGroups = Object.values(grouped).filter(g => g.dbType.toLowerCase() === 'mongodb');
     const documentdbGroups = Object.values(grouped).filter(g => g.dbType.toLowerCase() === 'documentdb');
     console.log(`MongoDB groups: ${mongodbGroups.length}, DocumentDB groups: ${documentdbGroups.length}`);
-    
+
     // Update insertion chart
     updateInsertionChart(grouped);
 
@@ -368,13 +614,13 @@ function updateCharts(results) {
 
 function updateInsertionChart(grouped) {
     const ctx = document.getElementById('insertion-chart').getContext('2d');
-    
+
     if (insertionChart) {
         insertionChart.destroy();
     }
-    
+
     const { labels, datasets } = sortAndAlignData(grouped, 'payloadSizes', 'insertTimes');
-    
+
     insertionChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -405,23 +651,23 @@ function updateInsertionChart(grouped) {
 
 function updateQueryChart(grouped) {
     const ctx = document.getElementById('query-chart').getContext('2d');
-    
+
     if (queryChart) {
         queryChart.destroy();
     }
-    
+
     // Use queryPayloadSizes if available, otherwise fall back to payloadSizes
-    const payloadKey = Object.values(grouped).some(g => g.queryPayloadSizes?.length > 0) 
-        ? 'queryPayloadSizes' 
+    const payloadKey = Object.values(grouped).some(g => g.queryPayloadSizes?.length > 0)
+        ? 'queryPayloadSizes'
         : 'payloadSizes';
-    
+
     const { labels, datasets } = sortAndAlignData(grouped, payloadKey, 'queryTimes');
-    
+
     // Add fill: false to datasets for line chart styling
     datasets.forEach(dataset => {
         dataset.fill = false;
     });
-    
+
     queryChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -452,18 +698,18 @@ function updateQueryChart(grouped) {
 
 function updateThroughputChart(grouped) {
     const ctx = document.getElementById('throughput-chart').getContext('2d');
-    
+
     if (throughputChart) {
         throughputChart.destroy();
     }
-    
+
     // Use throughputPayloadSizes if available, otherwise fall back to payloadSizes
-    const payloadKey = Object.values(grouped).some(g => g.throughputPayloadSizes?.length > 0) 
-        ? 'throughputPayloadSizes' 
+    const payloadKey = Object.values(grouped).some(g => g.throughputPayloadSizes?.length > 0)
+        ? 'throughputPayloadSizes'
         : 'payloadSizes';
-    
+
     const { labels, datasets } = sortAndAlignData(grouped, payloadKey, 'throughputs');
-    
+
     throughputChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -495,23 +741,32 @@ function updateThroughputChart(grouped) {
 function setupEventListeners() {
     document.getElementById('apply-filters').addEventListener('click', loadResults);
     document.getElementById('export-data').addEventListener('click', exportData);
+
+    // Modal close handlers
+    document.getElementById('modal-close').addEventListener('click', closeDetailModal);
+    document.getElementById('detail-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeDetailModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetailModal();
+    });
 }
 
 async function exportData() {
     try {
         const filters = getFilters();
         const queryParams = new URLSearchParams();
-        
+
         if (filters.database_type) queryParams.append('database_type', filters.database_type);
         if (filters.database_version) queryParams.append('database_version', filters.database_version);
         if (filters.test_run_id) queryParams.append('test_run_id', filters.test_run_id);
         if (filters.start_date) queryParams.append('start_date', filters.start_date);
         if (filters.end_date) queryParams.append('end_date', filters.end_date);
         queryParams.append('limit', '10000'); // Get more for export
-        
+
         const response = await fetch(`${API_BASE}?${queryParams}`);
         const data = await response.json();
-        
+
         // Convert to CSV
         const csv = convertToCSV(data.results);
         downloadCSV(csv, 'benchmark_results.csv');
@@ -522,7 +777,12 @@ async function exportData() {
 }
 
 function convertToCSV(results) {
-    const headers = ['Timestamp', 'Test Run ID', 'Database Type', 'Database Version', 'Test Type', 'Payload Size', 'Insert Time (ms)', 'Insert Throughput', 'Query Time (ms)'];
+    const headers = [
+        'Timestamp', 'Test Run ID', 'Database Type', 'Database Version',
+        'Test Type', 'Payload Size', 'Insert Time (ms)', 'Insert Throughput',
+        'Query Time (ms)', 'Avg CPU %', 'Peak CPU %', 'Avg Disk IOPS',
+        'I/O Wait %', 'CPU Model', 'CPU Cores', 'Memory (GB)', 'OS'
+    ];
     const rows = results.map(r => [
         new Date(r.timestamp).toISOString(),
         r.test_run_id || '',
@@ -532,9 +792,17 @@ function convertToCSV(results) {
         r.test_config?.payload_size || '',
         r.results?.insert_time_ms || '',
         r.results?.insert_throughput || '',
-        r.results?.query_time_ms || ''
+        r.results?.query_time_ms || '',
+        r.resource_metrics?.avg_cpu_percent ?? '',
+        r.resource_metrics?.max_cpu_percent ?? '',
+        r.resource_metrics?.avg_disk_iops ?? '',
+        r.resource_metrics?.avg_iowait_percent ?? '',
+        (r.system_info?.cpu?.model || '').replace(/,/g, ' '),
+        r.system_info?.cpu?.cores ?? '',
+        r.system_info?.memory?.total_gb ?? '',
+        (r.system_info?.os?.name || '').replace(/,/g, ' ')
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
 }
 

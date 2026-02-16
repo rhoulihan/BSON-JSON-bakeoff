@@ -80,8 +80,24 @@
             </div>
         </div>
 
+        <div class="charts-container" id="resource-comparison-section" style="display:none;">
+            <div class="chart-section" style="grid-column: 1 / -1;">
+                <h2>Resource Utilization Comparison by Database</h2>
+                <p class="chart-subtitle">CPU usage and disk I/O across database types within the selected test run</p>
+                <div class="resource-comparison-charts">
+                    <div class="resource-chart-wrapper">
+                        <canvas id="resource-cpu-chart"></canvas>
+                    </div>
+                    <div class="resource-chart-wrapper">
+                        <canvas id="resource-iops-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="results-table">
             <h2>Recent Test Results</h2>
+            <p class="table-hint">Click a row to see full system and resource details</p>
             <table id="results-table">
                 <thead>
                     <tr>
@@ -95,11 +111,45 @@
                         <th>Insert Throughput</th>
                         <th>Query Time (ms)</th>
                         <th>Latency p50/p99</th>
+                        <th>Avg CPU%</th>
+                        <th>Peak CPU%</th>
+                        <th>Disk IOPS</th>
+                        <th>I/O Wait%</th>
                     </tr>
                 </thead>
                 <tbody id="results-tbody">
                 </tbody>
             </table>
+        </div>
+
+        <!-- Detail modal for drill-down view -->
+        <div id="detail-modal" class="modal-overlay" style="display:none;">
+            <div class="modal-content">
+                <button class="modal-close" id="modal-close">&times;</button>
+                <h2 id="modal-title">Test Result Details</h2>
+                <div class="modal-body">
+                    <div class="detail-section">
+                        <h3>Test Configuration</h3>
+                        <div id="detail-test-config" class="detail-grid"></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>Performance Results</h3>
+                        <div id="detail-results" class="detail-grid"></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>System Information</h3>
+                        <div id="detail-system-info" class="detail-grid"></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>Resource Metrics</h3>
+                        <div id="detail-resource-metrics" class="detail-grid"></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>CI Information</h3>
+                        <div id="detail-ci-info" class="detail-grid"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
