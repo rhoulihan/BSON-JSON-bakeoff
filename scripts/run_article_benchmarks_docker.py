@@ -416,10 +416,11 @@ def check_ready(container_name, db_type):
         if db_info:
             port = db_info['port']
             # Try pymongo ping first (most reliable), then mongosh from host
+            # DocumentDB gateway requires TLS with self-signed certificates
             try:
                 from pymongo import MongoClient
                 client = MongoClient(
-                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true',
+                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true',
                     serverSelectionTimeoutMS=3000
                 )
                 client.admin.command('ping')
@@ -428,11 +429,12 @@ def check_ready(container_name, db_type):
             except Exception:
                 pass
 
-            # Fallback: try mongosh from host with authentication
+            # Fallback: try mongosh from host with authentication and TLS
             try:
                 check = subprocess.run(
                     f"mongosh --quiet --host localhost --port {port} "
                     f"--username testuser --password testpass --authenticationDatabase admin "
+                    f"--tls --tlsAllowInvalidCertificates "
                     f"--eval 'db.runCommand({{ping:1}})' 2>&1",
                     shell=True, capture_output=True, text=True, timeout=5
                 )
@@ -549,10 +551,11 @@ def initialize_database(container_name: str, db_type: str) -> bool:
         print(f"    ⚠️  Database initialization failed: {e}")
         return False
 
-def _verify_documentdb_operational(port, container_name="documentdb-benchmark", max_attempts=10, retry_interval=2):
+def _verify_documentdb_operational(port, container_name="documentdb-benchmark", max_attempts=15, retry_interval=3):
     """Verify DocumentDB can perform actual read/write operations, not just accept connections.
 
-    Tries pymongo first for a full MongoDB wire protocol check, then falls back to
+    Tries pymongo first for a full MongoDB wire protocol check (with TLS, since
+    DocumentDB gateway uses auto-generated certificates), then falls back to
     psql inside the container to verify the PostgreSQL engine is operational.
 
     Args:
@@ -574,7 +577,7 @@ def _verify_documentdb_operational(port, container_name="documentdb-benchmark", 
         if pymongo_available:
             try:
                 client = MongoClient(
-                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true',
+                    f'mongodb://testuser:testpass@localhost:{port}/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true',
                     serverSelectionTimeoutMS=5000
                 )
                 db = client['_readiness_check']
@@ -721,7 +724,7 @@ def get_docker_connection_string(db_type, port):
     if db_type == "mongodb":
         return f"mongodb://localhost:{port}"
     elif db_type == "documentdb":
-        return f"mongodb://testuser:testpass@localhost:{port}/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000"
+        return f"mongodb://testuser:testpass@localhost:{port}/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000"
     elif db_type in ("postgresql", "yugabytedb", "cockroachdb"):
         return f"jdbc:postgresql://localhost:{port}/test?user=postgres&password=password"
     return None
@@ -1477,7 +1480,7 @@ def ensure_config_properties():
             "postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password\n"
             "\n"
             "# DocumentDB Connection (MongoDB-compatible)\n"
-            "documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256\n"
+            "documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true\n"
         )
         print(f"✓ Generated {config_file}")
 
