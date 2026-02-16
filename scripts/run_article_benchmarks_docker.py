@@ -1309,7 +1309,7 @@ def main():
     parser.add_argument('--queries', '-q', action='store_true',
                         help=f'Include query tests with {QUERY_LINKS} links per document')
     parser.add_argument('--no-index', action='store_true',
-                        help='Run insert-only tests without indexes (disables --queries)')
+                        help='Run tests without indexes (can be combined with --queries)')
     parser.add_argument('--full-comparison', action='store_true',
                         help='Run both no-index and with-index tests in sequence for complete comparison')
     parser.add_argument('--randomize-order', action='store_true',
@@ -1374,8 +1374,8 @@ def main():
         run_full_comparison_suite(args)
         return
 
-    # Determine if queries should be enabled
-    enable_queries = args.queries and not args.no_index
+    # Determine if queries should be enabled (queries work with or without indexes)
+    enable_queries = args.queries
 
     # Remove index flags if --no-index is specified
     if args.no_index:
@@ -1391,7 +1391,10 @@ def main():
     print(f"Batch size: {BATCH_SIZE}")
     if args.no_index:
         print(f"Index tests: DISABLED (insert-only mode)")
-        print(f"Query tests: DISABLED (insert-only mode)")
+        if enable_queries:
+            print(f"Query tests: ENABLED ({QUERY_LINKS} links per document, no indexes)")
+        else:
+            print(f"Query tests: DISABLED (use --queries to enable)")
     elif enable_queries:
         print(f"Query tests: ENABLED ({QUERY_LINKS} links per document)")
     else:
