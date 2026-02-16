@@ -514,8 +514,15 @@ def initialize_database(container_name: str, db_type: str) -> bool:
         elif db_type == "yugabytedb":
             # YugabyteDB needs extra time for YSQL
             time.sleep(10)
+            # YugabyteDB binds YSQL to the container hostname, not localhost,
+            # so we must resolve the hostname and pass it via -h
+            hostname_result = subprocess.run(
+                f'docker exec {container_name} hostname',
+                shell=True, capture_output=True, text=True, timeout=10
+            )
+            yb_host = hostname_result.stdout.strip() if hostname_result.returncode == 0 else "$(hostname)"
             subprocess.run(
-                f'docker exec {container_name} ysqlsh -U yugabyte -c "CREATE DATABASE test;"',
+                f'docker exec {container_name} ysqlsh -h {yb_host} -U yugabyte -c "CREATE DATABASE test;"',
                 shell=True, capture_output=True, timeout=30
             )
             return True
