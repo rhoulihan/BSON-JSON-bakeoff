@@ -813,8 +813,15 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
         # If query tests were requested, parse query results
         if query_links is not None:
             # Parse query time: "Best query time for N ID's with M element link arrays...: XXXms"
+            # This format appears when num_runs > 1 (the Java -r flag)
             query_pattern = rf"Best query time for (\d+) ID's with {query_links} element link arrays.*?: (\d+)ms"
             query_match = re.search(query_pattern, result.stdout)
+
+            if not query_match:
+                # Fallback: single-run format (num_runs == 1)
+                # "Total time taken to query related documents for N ID's with M element link arrays...: XXXms"
+                query_pattern_single = rf"Total time taken to query related documents for (\d+) ID's with {query_links} element link arrays.*?: (\d+)ms"
+                query_match = re.search(query_pattern_single, result.stdout)
 
             if query_match:
                 queries_executed = int(query_match.group(1))
@@ -1199,7 +1206,7 @@ def generate_summary_table(single_results, multi_results):
     col_width = 14
 
     print(f"\n{'='*100}")
-    print("SUMMARY: Single-Attribute Results (10K documents) - All with indexes")
+    print(f"SUMMARY: Single-Attribute Results ({NUM_DOCS:,} documents) - All with indexes")
     print(f"{'='*100}")
     header = f"{'Payload':<12}"
     for db_key in active_db_keys:
@@ -1221,7 +1228,7 @@ def generate_summary_table(single_results, multi_results):
         print(row)
 
     print(f"\n{'='*100}")
-    print("SUMMARY: Multi-Attribute Results (10K documents) - All with indexes")
+    print(f"SUMMARY: Multi-Attribute Results ({NUM_DOCS:,} documents) - All with indexes")
     print(f"{'='*100}")
     header = f"{'Config':<20}"
     for db_key in active_db_keys:
