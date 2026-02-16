@@ -37,6 +37,17 @@ async function loadVersions() {
             option.textContent = version;
             dbVersionSelect.appendChild(option);
         });
+
+        // Populate test run dropdown
+        const testRunSelect = document.getElementById('test-run');
+        (data.test_run_ids || []).forEach(id => {
+            const option = document.createElement('option');
+            option.value = id;
+            // Show a truncated label for long UUIDs
+            option.textContent = id.length > 24 ? id.substring(0, 8) + '...' + id.substring(id.length - 4) : id;
+            option.title = id;
+            testRunSelect.appendChild(option);
+        });
     } catch (error) {
         console.error('Error loading versions:', error);
     }
@@ -60,6 +71,7 @@ async function loadResults() {
                 const queryParams = new URLSearchParams();
                 queryParams.append('database_type', dbType);
                 if (filters.database_version) queryParams.append('database_version', filters.database_version);
+                if (filters.test_run_id) queryParams.append('test_run_id', filters.test_run_id);
                 if (filters.start_date) queryParams.append('start_date', filters.start_date);
                 if (filters.end_date) queryParams.append('end_date', filters.end_date);
                 // Fetch a reasonable number of results per database type
@@ -83,10 +95,11 @@ async function loadResults() {
             const queryParams = new URLSearchParams();
             queryParams.append('database_type', filters.database_type);
             if (filters.database_version) queryParams.append('database_version', filters.database_version);
+            if (filters.test_run_id) queryParams.append('test_run_id', filters.test_run_id);
             if (filters.start_date) queryParams.append('start_date', filters.start_date);
             if (filters.end_date) queryParams.append('end_date', filters.end_date);
             queryParams.append('limit', '100');
-            
+
             const response = await fetch(`${API_BASE}?${queryParams}`);
             const data = await response.json();
             allResults = data.results || [];
@@ -105,6 +118,7 @@ function getFilters() {
         database_type: document.getElementById('database-type').value,
         database_version: document.getElementById('database-version').value,
         test_type: document.getElementById('test-type').value,
+        test_run_id: document.getElementById('test-run').value,
         start_date: document.getElementById('start-date').value,
         end_date: document.getElementById('end-date').value
     };
@@ -115,13 +129,15 @@ function updateTable(results) {
     tbody.innerHTML = '';
     
     if (results.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="loading">No results found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="loading">No results found</td></tr>';
         return;
     }
-    
+
     results.forEach(result => {
         const row = document.createElement('tr');
         const timestamp = new Date(result.timestamp).toLocaleString();
+        const testRunId = result.test_run_id || '-';
+        const shortRunId = testRunId.length > 16 ? testRunId.substring(0, 8) + '...' : testRunId;
         const dbType = result.database?.type || 'unknown';
         const dbVersion = result.database?.version || 'unknown';
         const testType = result.test_config?.test_type || 'unknown';
@@ -129,9 +145,10 @@ function updateTable(results) {
         const insertTime = result.results?.insert_time_ms || '-';
         const insertThroughput = result.results?.insert_throughput || '-';
         const queryTime = result.results?.query_time_ms || '-';
-        
+
         row.innerHTML = `
             <td>${timestamp}</td>
+            <td title="${testRunId}">${shortRunId}</td>
             <td>${dbType}</td>
             <td>${dbVersion}</td>
             <td>${testType}</td>
@@ -466,6 +483,7 @@ async function exportData() {
         
         if (filters.database_type) queryParams.append('database_type', filters.database_type);
         if (filters.database_version) queryParams.append('database_version', filters.database_version);
+        if (filters.test_run_id) queryParams.append('test_run_id', filters.test_run_id);
         if (filters.start_date) queryParams.append('start_date', filters.start_date);
         if (filters.end_date) queryParams.append('end_date', filters.end_date);
         queryParams.append('limit', '10000'); // Get more for export
@@ -483,9 +501,10 @@ async function exportData() {
 }
 
 function convertToCSV(results) {
-    const headers = ['Timestamp', 'Database Type', 'Database Version', 'Test Type', 'Payload Size', 'Insert Time (ms)', 'Insert Throughput', 'Query Time (ms)'];
+    const headers = ['Timestamp', 'Test Run ID', 'Database Type', 'Database Version', 'Test Type', 'Payload Size', 'Insert Time (ms)', 'Insert Throughput', 'Query Time (ms)'];
     const rows = results.map(r => [
         new Date(r.timestamp).toISOString(),
+        r.test_run_id || '',
         r.database?.type || '',
         r.database?.version || '',
         r.test_config?.test_type || '',
