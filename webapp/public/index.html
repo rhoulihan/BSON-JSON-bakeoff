@@ -36,6 +36,12 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label for="test-run">Test Run:</label>
+                <select id="test-run">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="filter-group">
                 <label for="date-range">Date Range:</label>
                 <input type="date" id="start-date">
                 <input type="date" id="end-date">
@@ -65,6 +71,7 @@
                 <thead>
                     <tr>
                         <th>Timestamp</th>
+                        <th>Test Run</th>
                         <th>Database</th>
                         <th>Version</th>
                         <th>Test Type</th>

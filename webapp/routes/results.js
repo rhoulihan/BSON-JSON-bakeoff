@@ -90,11 +90,13 @@ function getResultsRoutes(db, collectionName) {
             const dbVersions = await collection.distinct('database.version');
             const clientVersions = await collection.distinct('client.version');
             const dbTypes = await collection.distinct('database.type');
-            
+            const testRunIds = await collection.distinct('test_run_id');
+
             res.json({
                 database_versions: dbVersions.sort(),
                 client_versions: clientVersions.sort(),
-                database_types: dbTypes.sort()
+                database_types: dbTypes.sort(),
+                test_run_ids: testRunIds.filter(id => id != null).sort().reverse()
             });
         } catch (error) {
             console.error('Error getting versions:', error);
