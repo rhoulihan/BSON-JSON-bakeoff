@@ -227,6 +227,7 @@ log_info "Starting DocumentDB container..."
 cleanup_container "documentdb"
 
 # Pull and tag DocumentDB image if needed
+documentdb_image_ready=true
 if ! docker images -q documentdb-local:latest | grep -q .; then
     log_info "Pulling DocumentDB image..."
     if docker pull ghcr.io/documentdb/documentdb/documentdb-local:latest; then
@@ -235,21 +236,58 @@ if ! docker images -q documentdb-local:latest | grep -q .; then
     else
         log_error "Failed to pull DocumentDB image"
         overall_success=false
+        documentdb_image_ready=false
     fi
 fi
 
-# Start DocumentDB container (uses port 10260 internally)
-docker run --name documentdb --rm -d -p 10260:10260 documentdb-local:latest --username testuser --password testpass
+if [ "$documentdb_image_ready" = true ]; then
+    # Start DocumentDB container (uses port 10260 internally)
+    docker run --name documentdb --rm -d -p 10260:10260 documentdb-local:latest --username testuser --password testpass
 
-if wait_for_db "documentdb" "docker exec documentdb mongosh --quiet --eval 'db.runCommand({ping:1})' 2>/dev/null || nc -z localhost 10260" 60; then
-    # DocumentDB needs a moment to fully initialize
-    sleep 5
-    run_benchmark "documentdb" "-ddb" "$@" || overall_success=false
-else
-    log_error "DocumentDB failed to start"
-    overall_success=false
+    # DocumentDB is slower to initialize than MongoDB - use a longer timeout (90 attempts × 2s = 180s)
+    # and verify with an actual authenticated MongoDB ping, not just a port check
+    # Readiness check: try pymongo ping, then mongosh from host, then psql inside container
+    # (DocumentDB is PostgreSQL-based, so psql on internal port 9712 verifies the engine is ready)
+    if wait_for_db "documentdb" "python3 -c \"from pymongo import MongoClient; c=MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true', serverSelectionTimeoutMS=3000); c.admin.command('ping')\" 2>/dev/null || mongosh --host localhost --port 10260 --username testuser --password testpass --authenticationDatabase admin --quiet --eval 'db.runCommand({ping:1})' 2>/dev/null || docker exec documentdb psql -h localhost -p 9712 -U testuser -d postgres -c 'SELECT 1' 2>/dev/null" 90; then
+        # Verify DocumentDB can actually perform operations (not just accept connections)
+        # Try pymongo for full MongoDB protocol check, fall back to psql inside container
+        log_info "Verifying DocumentDB is fully operational..."
+        documentdb_operational=false
+        for verify_attempt in $(seq 1 10); do
+            # Try pymongo first (full MongoDB wire protocol verification)
+            if python3 -c "
+from pymongo import MongoClient
+c = MongoClient('mongodb://testuser:testpass@localhost:10260/?directConnection=true', serverSelectionTimeoutMS=5000)
+db = c['_readiness_check']
+db['_test'].insert_one({'check': 1})
+db['_test'].find_one({'check': 1})
+c.drop_database('_readiness_check')
+print('ok')
+" 2>/dev/null | grep -q "ok"; then
+                log_success "DocumentDB is fully operational (pymongo)"
+                documentdb_operational=true
+                break
+            fi
+            # Fall back to psql inside container (verifies PostgreSQL engine processes queries)
+            if docker exec documentdb psql -h localhost -p 9712 -U testuser -d postgres -c 'SELECT 1' 2>/dev/null | grep -q "1"; then
+                log_success "DocumentDB is fully operational (psql)"
+                documentdb_operational=true
+                break
+            fi
+            sleep 2
+        done
+        if [ "$documentdb_operational" = true ]; then
+            run_benchmark "documentdb" "-ddb" "$@" || overall_success=false
+        else
+            log_error "DocumentDB accepted connections but failed operational verification"
+            overall_success=false
+        fi
+    else
+        log_error "DocumentDB failed to start"
+        overall_success=false
+    fi
+    cleanup_container "documentdb"
 fi
-cleanup_container "documentdb"
 
 echo ""
 
