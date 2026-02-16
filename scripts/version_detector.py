@@ -94,7 +94,7 @@ def get_database_version(db_type: str, connection_info: Dict[str, Any]) -> Optio
         Database version string or None if failed
     """
     try:
-        if db_type in ["mongodb", "documentdb"]:
+        if db_type in ["mongodb", "documentdb", "mongodb-cloud", "documentdb-azure"]:
             return _get_mongodb_version(connection_info)
         elif db_type == "postgresql":
             return _get_postgresql_version(connection_info)
@@ -116,19 +116,21 @@ def _get_mongodb_version(connection_info: Dict[str, Any]) -> Optional[str]:
         user = connection_info.get('user')
         password = connection_info.get('password')
         database = connection_info.get('database', 'admin')
-        
+
         # Try using pymongo first (more reliable, works without mongosh)
         try:
             from pymongo import MongoClient
             import urllib.parse
-            
-            # Build connection URI
-            if user and password:
+
+            # Use full connection string if provided (e.g. cloud databases)
+            if connection_info.get('connection_string'):
+                connection_uri = connection_info['connection_string']
+            elif user and password:
                 encoded_password = urllib.parse.quote(password, safe='')
                 connection_uri = f"mongodb://{user}:{encoded_password}@{host}:{port}/{database}"
             else:
                 connection_uri = f"mongodb://{host}:{port}/{database}"
-            
+
             # Connect and get version
             client = MongoClient(connection_uri, serverSelectionTimeoutMS=5000)
             # Try buildInfo first (standard MongoDB command)
@@ -394,6 +396,8 @@ def get_all_versions(db_type: str, image_name: str, container_name: Optional[str
     client_lib_map = {
         "mongodb": "mongodb-driver-sync",
         "documentdb": "mongodb-driver-sync",
+        "mongodb-cloud": "mongodb-driver-sync",
+        "documentdb-azure": "mongodb-driver-sync",
         "postgresql": "postgresql",
         "oracle": "ojdbc11"
     }

@@ -122,6 +122,91 @@ DATABASES = [
     {"name": "CockroachDB (SQL)", "key": "cockroachdb", "flags": "-p -i -rd", "container": "cockroach-benchmark", "db_type": "cockroachdb", "port": 26257, "image": "cockroachdb/cockroach:latest"},
 ]
 
+# Cloud/SaaS databases - no Docker containers, connection string from config
+# These are added to DATABASES conditionally based on config + CLI flags
+CLOUD_DATABASES = [
+    {"name": "MongoDB Atlas (Cloud)", "key": "mongodb-cloud", "flags": "-i -rd", "container": None, "db_type": "mongodb-cloud", "port": None, "image": None, "cloud": True, "config_section": "mongodb_atlas"},
+    {"name": "Azure DocumentDB (Cloud)", "key": "documentdb-azure", "flags": "-ddb -i -rd", "container": None, "db_type": "documentdb-azure", "port": None, "image": None, "cloud": True, "config_section": "azure_documentdb"},
+]
+
+def get_enabled_cloud_databases(config):
+    """Return list of cloud database entries that are enabled in config.
+
+    Each cloud database must have enabled=true in its config section AND
+    a valid connection_string. Returns copies with 'connection_string' populated.
+    """
+    enabled = []
+    for cloud_db in CLOUD_DATABASES:
+        section = cloud_db['config_section']
+        if config.has_section(section):
+            if config.getboolean(section, 'enabled', fallback=False):
+                conn_str = config.get(section, 'connection_string', fallback=None)
+                if conn_str:
+                    entry = dict(cloud_db)
+                    entry['connection_string'] = conn_str
+                    enabled.append(entry)
+                else:
+                    print(f"  WARNING: {cloud_db['name']} is enabled but has no connection_string configured")
+    return enabled
+
+
+def check_cloud_database_ready(db_info):
+    """Verify a cloud/SaaS database is reachable.
+
+    Args:
+        db_info: Database info dict with 'connection_string' and 'db_type'
+
+    Returns:
+        True if the database responds to a ping, False otherwise
+    """
+    conn_str = db_info.get('connection_string', '')
+    db_type = db_info.get('db_type', '')
+
+    try:
+        from pymongo import MongoClient
+        # Both mongodb-cloud and documentdb-azure use the MongoDB wire protocol
+        client = MongoClient(conn_str, serverSelectionTimeoutMS=10000)
+        client.admin.command('ping')
+        client.close()
+        return True
+    except Exception as e:
+        print(f"    WARNING: Could not connect to {db_info['name']}: {e}")
+        return False
+
+
+def get_cloud_database_version(db_info):
+    """Query a cloud database for its version string.
+
+    Args:
+        db_info: Database info dict with 'connection_string' and 'db_type'
+
+    Returns:
+        Version string or None
+    """
+    conn_str = db_info.get('connection_string', '')
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(conn_str, serverSelectionTimeoutMS=10000)
+        try:
+            build_info = client.admin.command('buildInfo')
+            version = build_info.get('version')
+            client.close()
+            return version
+        except Exception:
+            pass
+        try:
+            server_info = client.server_info()
+            version = server_info.get('version')
+            client.close()
+            return version
+        except Exception:
+            pass
+        client.close()
+    except Exception as e:
+        print(f"    WARNING: Could not detect version for {db_info['name']}: {e}")
+    return None
+
+
 def load_benchmark_config():
     """Load benchmark configuration from config/benchmark_config.ini"""
     # Find config file relative to project root (parent of scripts directory)
@@ -300,9 +385,11 @@ def print_resource_summary(resource_summary, test_desc=None):
     print(f"      Samples: {resource_summary.get('samples', 0)}")
 
 def stop_all_databases():
-    """Stop all Docker containers before starting."""
+    """Stop all Docker containers before starting (skips cloud databases)."""
     print("Stopping all Docker containers...")
     for db in DATABASES:
+        if db.get('cloud'):
+            continue  # Cloud databases have no containers to stop
         container_name = db['container']
         # Stop and remove container if it exists
         subprocess.run(f"docker rm -f {container_name} 2>/dev/null", shell=True, capture_output=True)
@@ -611,6 +698,35 @@ def _verify_documentdb_operational(port, container_name="documentdb-benchmark", 
     print(f"    ✗ DocumentDB operational verification failed after {max_attempts} attempts")
     return False
 
+def start_cloud_database(db_info):
+    """Verify a cloud/SaaS database is reachable and collect version info.
+
+    No Docker containers are started. This only checks connectivity.
+
+    Args:
+        db_info: Database info dict with cloud=True and connection_string
+
+    Returns:
+        Tuple of (success: bool, version_info: dict)
+    """
+    print(f"  Connecting to {db_info['name']} (cloud/SaaS)...", end=" ", flush=True)
+
+    if not check_cloud_database_ready(db_info):
+        print("FAILED - could not reach cloud database")
+        return False, None
+
+    print("CONNECTED", flush=True)
+
+    # Collect version info
+    version_info = {}
+    db_version = get_cloud_database_version(db_info)
+    if db_version:
+        version_info['database_version'] = db_version
+        print(f"    Server version: {db_version}")
+
+    return True, version_info
+
+
 def start_database(container_name, db_type, config=None):
     """Start a Docker container and wait for it to be ready.
 
@@ -618,7 +734,7 @@ def start_database(container_name, db_type, config=None):
         container_name: Name of the Docker container
         db_type: Type of database
         config: ConfigParser object (not used for Docker, kept for compatibility)
-    
+
     Returns:
         Tuple of (success: bool, version_info: dict)
     """
@@ -714,6 +830,28 @@ def cleanup_database_files(db_type):
     """Clean up database data files (not needed for Docker with --rm flag)."""
     print(f"  Skipping file cleanup for {db_type} (Docker containers use --rm flag)", flush=True)
     return
+
+def get_connection_string_for_db(db_info):
+    """Get the connection string for a database.
+
+    For Docker databases, builds a localhost connection string from db_type and port.
+    For cloud databases, returns the configured connection string directly.
+    """
+    # Cloud databases use their configured connection string
+    if db_info.get('cloud') and db_info.get('connection_string'):
+        return db_info['connection_string']
+
+    # Docker databases use localhost connections
+    db_type = db_info['db_type']
+    port = db_info['port']
+    if db_type == "mongodb":
+        return f"mongodb://localhost:{port}"
+    elif db_type == "documentdb":
+        return f"mongodb://testuser:testpass@localhost:{port}/?directConnection=true&tls=true&tlsAllowInvalidCertificates=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000"
+    elif db_type in ("postgresql", "yugabytedb", "cockroachdb"):
+        return f"jdbc:postgresql://localhost:{port}/test?user=postgres&password=password"
+    return None
+
 
 def get_docker_connection_string(db_type, port):
     """Get the Docker-appropriate connection string for a database type and port.
@@ -868,7 +1006,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
                 java_version = None
                 if RESULTS_STORAGE_AVAILABLE:
                     from version_detector import get_client_library_version, get_java_version
-                    if db_type in ['mongodb', 'documentdb']:
+                    if db_type in ['mongodb', 'documentdb', 'mongodb-cloud', 'documentdb-azure']:
                         client_library = 'mongodb-driver-sync'
                         client_version = get_client_library_version('mongodb-driver-sync')
                     elif db_type in ['postgresql', 'yugabytedb', 'cockroachdb']:
@@ -982,12 +1120,18 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         for test_idx, test in enumerate(test_configs):
             # Inner loop: run this test on each database
             for db in DATABASES:
+                is_cloud = db.get('cloud', False)
+
                 if test_idx == 0:
                     # Print database header only for first test
-                    print(f"\n--- {db['name']} ---")
+                    cloud_label = " [Cloud/SaaS]" if is_cloud else ""
+                    print(f"\n--- {db['name']}{cloud_label} ---")
 
                 # Start database for this specific test
-                db_started, version_info = start_database(db['container'], db['db_type'], config)
+                if is_cloud:
+                    db_started, version_info = start_cloud_database(db)
+                else:
+                    db_started, version_info = start_database(db['container'], db['db_type'], config)
                 if not db_started:
                     print(f"  Testing: {test['desc']}... ✗ Database failed to start")
                     results[db['key']].append({"success": False, "error": "Database failed to start"})
@@ -1012,6 +1156,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                 # Run the test
                 print(f"  Testing: {test['desc']}...", end=" ", flush=True)
 
+                conn_string = get_connection_string_for_db(db)
+
                 result = run_benchmark(
                     db['flags'],
                     test['size'],
@@ -1030,7 +1176,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
                     validate=validate,
-                    conn_string=get_docker_connection_string(db['db_type'], db['port'])
+                    conn_string=conn_string
                 )
 
                 # Stop resource monitoring and extract summary
@@ -1055,11 +1201,10 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     results[db['key']].append(result)
                     print(f"✗ {result.get('error', 'Failed')}")
 
-                # Stop database immediately after test completes
-                stop_database(db['container'])
-
-                # Clean up database files to free disk space
-                cleanup_database_files(db['db_type'])
+                # Stop database immediately after test completes (skip for cloud)
+                if not is_cloud:
+                    stop_database(db['container'])
+                    cleanup_database_files(db['db_type'])
 
     else:
         # ORIGINAL MODE: Start database once, run all tests, then stop
@@ -1067,51 +1212,63 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
         current_db_name = None
 
         for db in DATABASES:
-            print(f"\n--- {db['name']} ---")
+            is_cloud = db.get('cloud', False)
+            cloud_label = " [Cloud/SaaS]" if is_cloud else ""
+            print(f"\n--- {db['name']}{cloud_label} ---")
 
-            # Start database if different from current
-            if db['container'] != current_container:
-                # Stop previous database if any
-                if current_container:
-                    stop_database(current_container)
-                    # Clean up previous database files
-                    if current_db_name:
-                        prev_db_type = None
-                        for prev_db in DATABASES:
-                            if prev_db['name'] == current_db_name:
-                                prev_db_type = prev_db['db_type']
-                                break
-                        if prev_db_type:
-                            cleanup_database_files(prev_db_type)
-                    if track_activity and current_db_name:
+            # Cloud databases don't use containers - always "start" (verify connectivity)
+            if is_cloud:
+                db_started, version_info = start_cloud_database(db)
+                if not db_started:
+                    print(f"  ERROR: Failed to connect to {db['name']}, skipping tests")
+                    results[db['key']] = [{"success": False, "error": "Cloud database unreachable"} for _ in test_configs]
+                    continue
+                database_info = version_info or {}
+                database_info['image'] = None  # No Docker image for cloud
+            else:
+                # Start database if different from current
+                if db['container'] != current_container:
+                    # Stop previous database if any
+                    if current_container:
+                        stop_database(current_container)
+                        # Clean up previous database files
+                        if current_db_name:
+                            prev_db_type = None
+                            for prev_db in DATABASES:
+                                if prev_db['name'] == current_db_name:
+                                    prev_db_type = prev_db['db_type']
+                                    break
+                            if prev_db_type:
+                                cleanup_database_files(prev_db_type)
+                        if track_activity and current_db_name:
+                            activity_log.append({
+                                "database": current_db_name,
+                                "event": "stopped",
+                                "timestamp": datetime.now().isoformat()
+                            })
+
+                    # Start new database
+                    db_started, version_info = start_database(db['container'], db['db_type'], config)
+                    if not db_started:
+                        print(f"  ERROR: Failed to start {db['container']}, skipping tests")
+                        results[db['key']] = [{"success": False, "error": "Database failed to start"} for _ in test_configs]
+                        continue
+
+                    current_container = db['container']
+                    current_db_name = db['name']
+
+                    # Build database info for MongoDB storage
+                    database_info = version_info or {}
+                    database_info['image'] = db.get('image')
+                    if version_info:
+                        database_info.update(version_info)
+
+                    if track_activity:
                         activity_log.append({
-                            "database": current_db_name,
-                            "event": "stopped",
+                            "database": db['name'],
+                            "event": "started",
                             "timestamp": datetime.now().isoformat()
                         })
-
-                # Start new database
-                db_started, version_info = start_database(db['container'], db['db_type'], config)
-                if not db_started:
-                    print(f"  ERROR: Failed to start {db['container']}, skipping tests")
-                    results[db['key']] = [{"success": False, "error": "Database failed to start"} for _ in test_configs]
-                    continue
-
-                current_container = db['container']
-                current_db_name = db['name']
-                
-                # Build database info for MongoDB storage
-                database_info = version_info or {}
-                database_info['image'] = db.get('image')
-                if version_info:
-                    database_info.update(version_info)
-
-                if track_activity:
-                    activity_log.append({
-                        "database": db['name'],
-                        "event": "started",
-                        "timestamp": datetime.now().isoformat()
-                    })
 
             results[db['key']] = []
 
@@ -1128,6 +1285,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
 
                 print(f"  Testing: {test['desc']}...", end=" ", flush=True)
 
+                conn_string = get_connection_string_for_db(db)
+
                 result = run_benchmark(
                     db['flags'],
                     test['size'],
@@ -1146,7 +1305,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
                     validate=validate,
-                    conn_string=get_docker_connection_string(db['db_type'], db['port'])
+                    conn_string=conn_string
                 )
 
                 # Stop resource monitoring and extract summary
@@ -1171,7 +1330,7 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     results[db['key']].append(result)
                     print(f"✗ {result.get('error', 'Failed')}")
 
-        # Stop the last database
+        # Stop the last database (if it was a Docker container)
         if current_container:
             stop_database(current_container)
             # Clean up final database files
@@ -1221,7 +1380,7 @@ def store_results_to_mongodb(results_dict, results_storage):
 def generate_summary_table(single_results, multi_results):
     """Generate a summary comparison table."""
     # Get list of database keys that have results
-    all_db_keys = ['mongodb', 'documentdb', 'postgresql', 'yugabytedb', 'cockroachdb']
+    all_db_keys = ['mongodb', 'documentdb', 'postgresql', 'yugabytedb', 'cockroachdb', 'mongodb-cloud', 'documentdb-azure']
     active_db_keys = [k for k in all_db_keys if k in single_results or k in multi_results]
 
     # Column width for each database
@@ -1506,6 +1665,10 @@ def main():
     parser.add_argument('--postgresql', action='store_true', help='Run PostgreSQL tests')
     parser.add_argument('--yugabytedb', action='store_true', help='Run YugabyteDB tests')
     parser.add_argument('--cockroachdb', action='store_true', help='Run CockroachDB tests')
+    parser.add_argument('--mongodb-atlas', action='store_true',
+                        help='Run MongoDB Atlas (cloud/SaaS) tests (requires [mongodb_atlas] enabled=true in config)')
+    parser.add_argument('--azure-documentdb', action='store_true',
+                        help='Run Azure DocumentDB (cloud/SaaS) tests (requires [azure_documentdb] enabled=true in config)')
     parser.add_argument('--batch-size', '-b', type=int, default=BATCH_SIZE,
                         help=f'Batch size for insertions (default: {BATCH_SIZE})')
     parser.add_argument('--num-docs', '-n', type=int, default=NUM_DOCS,
@@ -1544,15 +1707,31 @@ def main():
         MULTI_ATTR_TESTS = MULTI_ATTR_TESTS + LARGE_MULTI_ATTR_TESTS
         print("\n✓ Large item tests enabled (10KB, 100KB, 1000KB)")
 
+    # Add cloud databases if enabled in config AND requested via CLI (or no specific DB flags)
+    cloud_dbs = get_enabled_cloud_databases(config)
+    any_db_flag = (args.mongodb or args.documentdb or args.postgresql or
+                   args.yugabytedb or args.cockroachdb or
+                   args.mongodb_atlas or args.azure_documentdb)
+
+    for cloud_db in cloud_dbs:
+        # Include cloud DB if its specific flag is passed, or if no DB flags are passed at all
+        if not any_db_flag:
+            DATABASES.append(cloud_db)
+        elif (args.mongodb_atlas and cloud_db['db_type'] == 'mongodb-cloud') or \
+             (args.azure_documentdb and cloud_db['db_type'] == 'documentdb-azure'):
+            DATABASES.append(cloud_db)
+
     # Filter databases based on arguments (if no args, run all)
-    if args.mongodb or args.documentdb or args.postgresql or args.yugabytedb or args.cockroachdb:
+    if any_db_flag:
         enabled_databases = []
         for db in DATABASES:
             if (args.mongodb and db['db_type'] == 'mongodb') or \
                (args.documentdb and db['db_type'] == 'documentdb') or \
                (args.postgresql and db['db_type'] == 'postgresql') or \
                (args.yugabytedb and db['db_type'] == 'yugabytedb') or \
-               (args.cockroachdb and db['db_type'] == 'cockroachdb'):
+               (args.cockroachdb and db['db_type'] == 'cockroachdb') or \
+               (args.mongodb_atlas and db['db_type'] == 'mongodb-cloud') or \
+               (args.azure_documentdb and db['db_type'] == 'documentdb-azure'):
                 enabled_databases.append(db)
         DATABASES = enabled_databases
 

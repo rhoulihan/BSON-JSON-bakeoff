@@ -157,7 +157,7 @@ def collect_metadata(db_type: str, docker_image: Optional[str] = None,
     # Client library version from pom.xml
     client_library = None
     client_version = None
-    if db_type in ["mongodb", "documentdb"]:
+    if db_type in ["mongodb", "documentdb", "mongodb-cloud", "documentdb-azure"]:
         client_library = "mongodb-driver-sync"
         client_version = get_client_library_version("mongodb-driver-sync")
     elif db_type in ["postgresql", "yugabytedb", "cockroachdb"]:
@@ -307,7 +307,8 @@ def load_config() -> Optional[configparser.ConfigParser]:
 def main():
     parser = argparse.ArgumentParser(description='Store benchmark results in MongoDB')
     parser.add_argument('--db-type', required=True,
-                       choices=['mongodb', 'documentdb', 'postgresql', 'yugabytedb', 'cockroachdb'],
+                       choices=['mongodb', 'documentdb', 'postgresql', 'yugabytedb', 'cockroachdb',
+                                'mongodb-cloud', 'documentdb-azure'],
                        help='Database type being tested')
     parser.add_argument('--db-version', default='unknown',
                        help='Database version')
