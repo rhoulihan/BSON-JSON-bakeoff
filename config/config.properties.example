@@ -13,7 +13,7 @@ documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?direct
 
 # PostgreSQL Connection
 # Format: jdbc:postgresql://[host]:[port]/[database]?user=[username]&password=[password]
-postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=YOUR_PASSWORD
+postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password
 
 # Oracle Connection
 # Format: jdbc:oracle:thin:[username]/[password]@[host]:[port]/[service_name]

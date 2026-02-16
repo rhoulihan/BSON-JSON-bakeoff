@@ -717,10 +717,27 @@ def cleanup_database_files(db_type):
     print(f"  Skipping file cleanup for {db_type} (Docker containers use --rm flag)", flush=True)
     return
 
-def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=True, db_name="unknown", db_type=None, results_storage=None, test_run_id=None, database_info=None, system_info=None, ci_info=None, resource_summary=None, validate=False):
+def get_docker_connection_string(db_type, port):
+    """Get the Docker-appropriate connection string for a database type and port.
+
+    This overrides config.properties via -Dconn to ensure correct credentials
+    and ports regardless of what's in the config file.
+    """
+    if db_type == "mongodb":
+        return f"mongodb://localhost:{port}"
+    elif db_type == "documentdb":
+        return f"mongodb://testuser:testpass@localhost:{port}/?directConnection=true&authMechanism=SCRAM-SHA-256&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000"
+    elif db_type in ("postgresql", "yugabytedb", "cockroachdb"):
+        return f"jdbc:postgresql://localhost:{port}/test?user=postgres&password=password"
+    return None
+
+
+def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=True, db_name="unknown", db_type=None, results_storage=None, test_run_id=None, database_info=None, system_info=None, ci_info=None, resource_summary=None, validate=False, conn_string=None):
     """Run a single benchmark test, optionally with query tests."""
 
-    cmd = f"java -jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
+    # Build Java command with explicit connection string override if provided
+    conn_flag = f'-Dconn="{conn_string}" ' if conn_string else ''
+    cmd = f"java {conn_flag}-jar {JAR_PATH} {db_flags} -s {size} -n {attrs} -r {num_runs} -b {batch_size}"
 
     # Add size measurement flag if specified
     if measure_sizes:
@@ -1014,7 +1031,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     system_info=system_info,
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
-                    validate=validate
+                    validate=validate,
+                    conn_string=get_docker_connection_string(db['db_type'], db['port'])
                 )
 
                 # Stop resource monitoring and extract summary
@@ -1129,7 +1147,8 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     system_info=system_info,
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
-                    validate=validate
+                    validate=validate,
+                    conn_string=get_docker_connection_string(db['db_type'], db['port'])
                 )
 
                 # Stop resource monitoring and extract summary
