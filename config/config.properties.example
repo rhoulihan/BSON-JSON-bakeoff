@@ -7,9 +7,7 @@ mongodb.connection.string=mongodb://localhost:27017
 
 # DocumentDB Connection (MongoDB-compatible)
 # Format: mongodb://[username]:[password]@[host]:[port]/?directConnection=true
-# directConnection=true is required for single-node DocumentDB local
-# Generous timeouts are needed because the MongoDB wire protocol starts after PostgreSQL
-documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=30000&socketTimeoutMS=60000
+documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?directConnection=true
 
 # PostgreSQL Connection
 # Format: jdbc:postgresql://[host]:[port]/[database]?user=[username]&password=[password]
