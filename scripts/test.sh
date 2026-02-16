@@ -8,6 +8,25 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 cd "$PROJECT_ROOT"
 
+# Auto-generate config.properties with Docker-appropriate defaults if missing
+if [ ! -f "$PROJECT_ROOT/config.properties" ]; then
+    echo "config.properties not found - generating with Docker defaults..."
+    cat > "$PROJECT_ROOT/config.properties" <<'CONFIGEOF'
+# Auto-generated config.properties for Docker-based testing
+# See config/config.properties.example for full documentation
+
+# MongoDB Connection
+mongodb.connection.string=mongodb://localhost:27017
+
+# PostgreSQL Connection
+postgresql.connection.string=jdbc:postgresql://localhost:5432/test?user=postgres&password=password
+
+# DocumentDB Connection (MongoDB-compatible)
+documentdb.connection.string=mongodb://testuser:testpass@localhost:10260/?authMechanism=SCRAM-SHA-256
+CONFIGEOF
+    echo "✓ Generated config.properties with Docker defaults"
+fi
+
 # Configuration
 STORE_RESULTS=${STORE_RESULTS:-true}  # Set to false to disable MongoDB storage
 TEST_RUN_ID=${TEST_RUN_ID:-"test.sh-$(date +%Y%m%d-%H%M%S)-$$"}
