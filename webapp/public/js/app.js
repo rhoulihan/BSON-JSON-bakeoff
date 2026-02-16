@@ -175,7 +175,7 @@ function updateTable(results) {
         const shortRunId = testRunId.length > 16 ? testRunId.substring(0, 8) + '...' : testRunId;
         const dbType = result.database?.type || 'unknown';
         const dbVersion = result.database?.version || 'unknown';
-        // Build detailed version tooltip for DocumentDB
+        // Build detailed version display
         let versionDisplay = dbVersion;
         let versionTooltip = dbVersion;
         if ((dbType === 'documentdb' || dbType === 'documentdb-azure') && result.database) {
@@ -185,7 +185,16 @@ function updateTable(results) {
             if (result.database.postgres_version) parts.push(`PostgreSQL: ${result.database.postgres_version}`);
             if (parts.length > 0) {
                 versionTooltip = parts.join(' | ');
-                versionDisplay = result.database.documentdb_version || dbVersion;
+                // Show primary version with sub-components
+                const primary = result.database.documentdb_version || dbVersion;
+                const subParts = [];
+                if (result.database.wire_protocol_version) subParts.push(`Wire: ${result.database.wire_protocol_version}`);
+                if (result.database.postgres_version) subParts.push(`PG: ${result.database.postgres_version}`);
+                if (subParts.length > 0) {
+                    versionDisplay = `${primary}<br><span class="version-sub">${subParts.join(' / ')}</span>`;
+                } else {
+                    versionDisplay = primary;
+                }
             }
         }
         const testType = result.test_config?.test_type || 'unknown';
@@ -241,6 +250,27 @@ function showDetailModal(result) {
     const dbType = result.database?.type || 'unknown';
     const dbVersion = result.database?.version || '';
     title.textContent = `${dbType} ${dbVersion} - Test Result Details`;
+
+    // Database Information
+    const dbInfoItems = [
+        ['Database Type', result.database?.type],
+        ['Version', result.database?.version],
+    ];
+    // Add DocumentDB-specific version components
+    if (dbType === 'documentdb' || dbType === 'documentdb-azure') {
+        dbInfoItems.push(
+            ['DocumentDB Version', result.database?.documentdb_version],
+            ['Wire Protocol Version', result.database?.wire_protocol_version],
+            ['PostgreSQL Version', result.database?.postgres_version]
+        );
+    }
+    dbInfoItems.push(
+        ['Docker Image', result.database?.docker_image],
+        ['Image Tag', result.database?.docker_image_tag],
+        ['Client Library', result.client?.library],
+        ['Client Version', result.client?.version]
+    );
+    populateDetailGrid('detail-database-info', dbInfoItems);
 
     // Test Configuration
     populateDetailGrid('detail-test-config', [

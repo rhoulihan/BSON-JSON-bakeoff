@@ -102,11 +102,19 @@ function getResultsRoutes(db, collectionName) {
                 timestamp: r.first_timestamp
             }));
 
+            // Collect DocumentDB-specific version components
+            const documentdbVersions = await collection.distinct('database.documentdb_version');
+            const wireProtocolVersions = await collection.distinct('database.wire_protocol_version');
+            const postgresVersions = await collection.distinct('database.postgres_version');
+
             res.json({
                 database_versions: dbVersions.sort(),
                 client_versions: clientVersions.sort(),
                 database_types: dbTypes.sort(),
-                test_run_ids
+                test_run_ids,
+                documentdb_versions: documentdbVersions.filter(v => v != null).sort(),
+                wire_protocol_versions: wireProtocolVersions.filter(v => v != null).sort(),
+                postgres_versions: postgresVersions.filter(v => v != null).sort()
             });
         } catch (error) {
             console.error('Error getting versions:', error);
