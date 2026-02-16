@@ -868,7 +868,7 @@ def get_docker_connection_string(db_type, port):
     return None
 
 
-def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=True, db_name="unknown", db_type=None, results_storage=None, test_run_id=None, database_info=None, system_info=None, ci_info=None, resource_summary=None, validate=False, conn_string=None):
+def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_links=None, measure_sizes=True, db_name="unknown", db_type=None, results_storage=None, test_run_id=None, database_info=None, system_info=None, ci_info=None, resource_summary=None, validate=False, conn_string=None, collect_latency=False):
     """Run a single benchmark test, optionally with query tests."""
 
     # Build Java command with explicit connection string override if provided
@@ -882,6 +882,10 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
     # Add validation flag if specified
     if validate:
         cmd += " -v"
+
+    # Add latency collection flag for cloud/SaaS databases
+    if collect_latency:
+        cmd += " -latency"
 
     # Add query test flag if specified
     if query_links is not None:
@@ -996,6 +1000,33 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
                 response["query_time_ms"] = None
                 response["query_error"] = "Could not parse query results"
         
+        # Parse latency statistics if latency collection was enabled
+        if collect_latency:
+            latency_metrics = {}
+            for line in result.stdout.split('\n'):
+                if line.startswith('LATENCY_STATS|'):
+                    parts = line.split('|', 2)
+                    if len(parts) == 3:
+                        op_type = parts[1]
+                        try:
+                            stats = json.loads(parts[2])
+                            # Simplify samples to just ms values for storage (drop timestamps for size)
+                            simplified_samples = [s['ms'] for s in stats.get('samples', [])]
+                            latency_metrics[op_type] = {
+                                'min_ms': stats.get('min_ms'),
+                                'max_ms': stats.get('max_ms'),
+                                'avg_ms': stats.get('avg_ms'),
+                                'p50_ms': stats.get('p50_ms'),
+                                'p95_ms': stats.get('p95_ms'),
+                                'p99_ms': stats.get('p99_ms'),
+                                'sample_count': stats.get('sample_count'),
+                                'samples': simplified_samples
+                            }
+                        except (json.JSONDecodeError, KeyError) as e:
+                            print(f"    Warning: Could not parse latency stats for {op_type}: {e}")
+            if latency_metrics:
+                response['latency_metrics'] = latency_metrics
+
         # Build full result document structure for MongoDB storage (to be stored later)
         # Include all metadata needed for storage
         if response.get('success'):
@@ -1064,6 +1095,7 @@ def run_benchmark(db_flags, size, attrs, num_docs, num_runs, batch_size, query_l
                     },
                     'system_info': system_info or {},
                     'resource_metrics': resource_summary or {},
+                    'latency_metrics': response.get('latency_metrics', {}),
                     'ci_info': ci_info or {}
                 }
                 
@@ -1144,14 +1176,18 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     database_info.update(version_info)
 
                 # Start resource monitoring for this test if enabled
+                # Skip resource monitoring for cloud DBs (not meaningful) - use latency collection instead
                 monitor_proc = None
                 resource_metrics_file = None
-                if enable_monitoring:
+                if enable_monitoring and not is_cloud:
                     test_type_short = 'single_attr' if test['attrs'] == 1 else 'multi_attr'
                     resource_metrics_file = generate_resource_metrics_filename(
                         db['db_type'], test_type_short, test['size'], test['attrs']
                     )
                     monitor_proc = start_monitoring(resource_metrics_file, monitor_interval)
+
+                # Enable latency collection for cloud/SaaS databases
+                use_latency = is_cloud
 
                 # Run the test
                 print(f"  Testing: {test['desc']}...", end=" ", flush=True)
@@ -1176,12 +1212,13 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
                     validate=validate,
-                    conn_string=conn_string
+                    conn_string=conn_string,
+                    collect_latency=use_latency
                 )
 
-                # Stop resource monitoring and extract summary
+                # Stop resource monitoring and extract summary (only for non-cloud DBs)
                 resource_summary = None
-                if enable_monitoring and monitor_proc:
+                if enable_monitoring and not is_cloud and monitor_proc:
                     stop_monitoring(monitor_proc)
                     resource_summary = get_resource_summary_from_file(resource_metrics_file)
                     # Output resource summary to debug console
@@ -1195,6 +1232,10 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     output = f"✓ {result['time_ms']}ms ({result['throughput']:,.0f} docs/sec)"
                     if enable_queries and 'query_time_ms' in result and result['query_time_ms']:
                         output += f" | Query: {result['query_time_ms']}ms ({result['query_throughput']:,.0f} queries/sec)"
+                    # Show latency summary for cloud DBs
+                    if use_latency and result.get('latency_metrics'):
+                        for op, metrics in result['latency_metrics'].items():
+                            output += f" | {op} p50={metrics['p50_ms']:.1f}ms p99={metrics['p99_ms']:.1f}ms"
                     results[db['key']].append(result)
                     print(output)
                 else:
@@ -1274,14 +1315,18 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
 
             for test in test_configs:
                 # Start resource monitoring for this test if enabled
+                # Skip resource monitoring for cloud DBs (not meaningful) - use latency collection instead
                 monitor_proc = None
                 resource_metrics_file = None
-                if enable_monitoring:
+                if enable_monitoring and not is_cloud:
                     test_type_short = 'single_attr' if test['attrs'] == 1 else 'multi_attr'
                     resource_metrics_file = generate_resource_metrics_filename(
                         db['db_type'], test_type_short, test['size'], test['attrs']
                     )
                     monitor_proc = start_monitoring(resource_metrics_file, monitor_interval)
+
+                # Enable latency collection for cloud/SaaS databases
+                use_latency = is_cloud
 
                 print(f"  Testing: {test['desc']}...", end=" ", flush=True)
 
@@ -1305,12 +1350,13 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     ci_info=ci_info,
                     resource_summary=None,  # Will be populated after monitoring stops
                     validate=validate,
-                    conn_string=conn_string
+                    conn_string=conn_string,
+                    collect_latency=use_latency
                 )
 
-                # Stop resource monitoring and extract summary
+                # Stop resource monitoring and extract summary (only for non-cloud DBs)
                 resource_summary = None
-                if enable_monitoring and monitor_proc:
+                if enable_monitoring and not is_cloud and monitor_proc:
                     stop_monitoring(monitor_proc)
                     resource_summary = get_resource_summary_from_file(resource_metrics_file)
                     # Output resource summary to debug console
@@ -1324,6 +1370,10 @@ def run_test_suite(test_configs, test_type, enable_queries=False, restart_per_te
                     output = f"✓ {result['time_ms']}ms ({result['throughput']:,.0f} docs/sec)"
                     if enable_queries and 'query_time_ms' in result and result['query_time_ms']:
                         output += f" | Query: {result['query_time_ms']}ms ({result['query_throughput']:,.0f} queries/sec)"
+                    # Show latency summary for cloud DBs
+                    if use_latency and result.get('latency_metrics'):
+                        for op, metrics in result['latency_metrics'].items():
+                            output += f" | {op} p50={metrics['p50_ms']:.1f}ms p99={metrics['p99_ms']:.1f}ms"
                     results[db['key']].append(result)
                     print(output)
                 else:
