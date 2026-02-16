@@ -787,21 +787,19 @@ def start_database(container_name, db_type, config=None):
                         'port': db_info['port'],
                         'container': container_name
                     }
-                    # Add authentication for DocumentDB
+                    # Add db-specific connection parameters
                     if db_type == 'documentdb':
-                        # Load config to get DocumentDB credentials
-                        try:
-                            config = load_benchmark_config()
-                            if config.has_section('documentdb'):
-                                connection_info['user'] = config.get('documentdb', 'user', fallback='testuser')
-                                connection_info['password'] = config.get('documentdb', 'password', fallback='testpass')
-                                connection_info['database'] = config.get('documentdb', 'database', fallback='test')
-                        except Exception as e:
-                            # Fallback to hardcoded defaults if config fails
-                            print(f"    ⚠️  Warning: Could not load config for DocumentDB credentials: {e}")
-                            connection_info['user'] = 'testuser'
-                            connection_info['password'] = 'testpass'
-                            connection_info['database'] = 'test'
+                        connection_info['user'] = 'testuser'
+                        connection_info['password'] = 'testpass'
+                        connection_info['database'] = 'test'
+                        connection_info['tls'] = True
+                    elif db_type == 'postgresql':
+                        connection_info['user'] = 'postgres'
+                        connection_info['password'] = 'password'
+                    elif db_type == 'yugabytedb':
+                        connection_info['user'] = 'yugabyte'
+                    elif db_type == 'cockroachdb':
+                        connection_info['user'] = 'root'
                     db_version = get_database_version(db_type, connection_info)
                 except Exception:
                     pass

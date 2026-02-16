@@ -120,6 +120,7 @@ def _get_mongodb_version(connection_info: Dict[str, Any]) -> Optional[str]:
         user = connection_info.get('user')
         password = connection_info.get('password')
         database = connection_info.get('database', 'admin')
+        use_tls = connection_info.get('tls', False)
 
         # Try using pymongo first (more reliable, works without mongosh)
         try:
@@ -134,6 +135,11 @@ def _get_mongodb_version(connection_info: Dict[str, Any]) -> Optional[str]:
                 connection_uri = f"mongodb://{user}:{encoded_password}@{host}:{port}/{database}"
             else:
                 connection_uri = f"mongodb://{host}:{port}/{database}"
+
+            # Add TLS parameters for DocumentDB
+            if use_tls:
+                sep = '&' if '?' in connection_uri else '?'
+                connection_uri += f"{sep}directConnection=true&tls=true&tlsAllowInvalidCertificates=true"
 
             # Connect and get version
             client = MongoClient(connection_uri, serverSelectionTimeoutMS=5000)
