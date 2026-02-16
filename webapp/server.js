@@ -7,6 +7,7 @@ const cors = require('cors');
 const path = require('path');
 const { connectToMongoDB, closeConnection } = require('./config/mongodb');
 const getResultsRoutes = require('./routes/results');
+const benchmarkRouter = require('./routes/benchmark');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,9 @@ let dbError = null;
 app.get('/api/health', (req, res) => {
     res.json({ status: db ? 'ok' : 'degraded', database: db ? 'connected' : 'disconnected' });
 });
+
+// Benchmark run API (no MongoDB dependency)
+app.use('/api/benchmark', benchmarkRouter);
 
 // API results proxy — delegates to the real router once MongoDB connects
 app.use('/api/results', (req, res, next) => {

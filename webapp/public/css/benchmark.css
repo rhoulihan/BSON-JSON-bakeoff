@@ -1,0 +1,295 @@
+/* Benchmark page styles - extends base style.css */
+
+.header-nav {
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.header-nav a {
+    color: #667eea;
+    text-decoration: none;
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.header-nav a:hover {
+    background: #f0f4ff;
+}
+
+.header-nav a.active {
+    background: #667eea;
+    color: white;
+}
+
+/* Form sections */
+.form-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.form-section h2 {
+    color: #667eea;
+    margin-bottom: 5px;
+    font-size: 1.3em;
+}
+
+.form-section h3 {
+    color: #555;
+    font-size: 1em;
+    margin: 15px 0 8px;
+}
+
+.section-desc {
+    color: #888;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+}
+
+/* Database grid */
+.db-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.checkbox-group.horizontal {
+    gap: 20px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.checkbox-label:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.checkbox-label input:checked + .cb-text {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.cb-badge {
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.cb-badge.docker {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.cb-badge.cloud {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+/* Cloud connection config */
+.cloud-config {
+    margin-top: 15px;
+    padding: 15px;
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 6px;
+}
+
+.conn-group {
+    margin-bottom: 12px;
+}
+
+.conn-group label {
+    display: block;
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 4px;
+    font-size: 0.9em;
+}
+
+.conn-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95em;
+    font-family: monospace;
+}
+
+.conn-hint {
+    font-size: 0.8em;
+    color: #999;
+}
+
+/* Parameter grid */
+.params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.param-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.param-group label {
+    font-weight: 500;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.param-group input,
+.param-group select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+/* Options grid */
+.options-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Action buttons */
+.form-actions {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.btn-large {
+    padding: 14px 40px;
+    font-size: 1.15em;
+}
+
+.btn-danger {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    transition: all 0.3s;
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+/* Output console */
+.output-section {
+    margin-top: 10px;
+}
+
+.output-section h2 {
+    color: #667eea;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.run-status {
+    font-size: 0.6em;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.run-status.running {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.run-status.completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.run-status.failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.run-status.stopped {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.output-console {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+    padding: 16px;
+    border-radius: 8px;
+    max-height: 600px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.output-console .line-stdout {
+    color: #cdd6f4;
+}
+
+.output-console .line-stderr {
+    color: #f38ba8;
+}
+
+.output-console .line-system {
+    color: #a6e3a1;
+    font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .params-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .checkbox-group {
+        flex-direction: column;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .btn-large {
+        width: 100%;
+    }
+}

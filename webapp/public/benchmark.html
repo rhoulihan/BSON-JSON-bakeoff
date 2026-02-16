@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run New Benchmark</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/benchmark.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Run New Benchmark</h1>
+            <p>Configure and launch benchmark tests against Docker-based and cloud databases</p>
+            <nav class="header-nav">
+                <a href="/">Dashboard</a>
+                <a href="/benchmark.html" class="active">Run Benchmark</a>
+            </nav>
+        </header>
+
+        <form id="benchmark-form">
+            <!-- Database Selection -->
+            <div class="form-section">
+                <h2>Database Selection</h2>
+                <p class="section-desc">Choose which databases to benchmark. At least one must be selected.</p>
+
+                <div class="db-grid">
+                    <h3>Local (Docker)</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="mongodb" checked>
+                            <span class="cb-text">MongoDB</span>
+                            <span class="cb-badge docker">Docker</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="documentdb">
+                            <span class="cb-text">DocumentDB</span>
+                            <span class="cb-badge docker">Docker</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="postgresql" checked>
+                            <span class="cb-text">PostgreSQL</span>
+                            <span class="cb-badge docker">Docker</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="yugabytedb">
+                            <span class="cb-text">YugabyteDB</span>
+                            <span class="cb-badge docker">Docker</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="cockroachdb">
+                            <span class="cb-text">CockroachDB</span>
+                            <span class="cb-badge docker">Docker</span>
+                        </label>
+                    </div>
+
+                    <h3>Cloud / SaaS</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="mongodb-atlas" id="db-atlas">
+                            <span class="cb-text">MongoDB Atlas</span>
+                            <span class="cb-badge cloud">Cloud</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="databases" value="azure-documentdb" id="db-azure">
+                            <span class="cb-text">Azure DocumentDB</span>
+                            <span class="cb-badge cloud">Cloud</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Cloud connection string overrides -->
+                <div id="cloud-config" class="cloud-config" style="display:none;">
+                    <h3>Cloud Database Connection</h3>
+                    <p class="section-desc">Provide connection strings for selected cloud databases. These override config/benchmark_config.ini values for this run only.</p>
+
+                    <div id="atlas-conn-group" class="conn-group" style="display:none;">
+                        <label for="atlas-conn">MongoDB Atlas Connection String:</label>
+                        <input type="text" id="atlas-conn" placeholder="mongodb+srv://user:pass@cluster.mongodb.net/test" autocomplete="off">
+                        <span class="conn-hint">Leave blank to use the value from benchmark_config.ini</span>
+                    </div>
+
+                    <div id="azure-conn-group" class="conn-group" style="display:none;">
+                        <label for="azure-conn">Azure DocumentDB Connection String:</label>
+                        <input type="text" id="azure-conn" placeholder="mongodb://user:pass@host:10255/?ssl=true&..." autocomplete="off">
+                        <span class="conn-hint">Leave blank to use the value from benchmark_config.ini</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Parameters -->
+            <div class="form-section">
+                <h2>Test Parameters</h2>
+
+                <div class="params-grid">
+                    <div class="param-group">
+                        <label for="num-docs">Documents per test:</label>
+                        <input type="number" id="num-docs" value="10000" min="100" max="1000000" step="100">
+                    </div>
+                    <div class="param-group">
+                        <label for="num-runs">Runs per test (best reported):</label>
+                        <input type="number" id="num-runs" value="3" min="1" max="20">
+                    </div>
+                    <div class="param-group">
+                        <label for="batch-size">Batch size:</label>
+                        <input type="number" id="batch-size" value="500" min="1" max="100000">
+                    </div>
+                    <div class="param-group">
+                        <label for="query-links">Query array elements:</label>
+                        <input type="number" id="query-links" value="10" min="1" max="1000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payload Sizes -->
+            <div class="form-section">
+                <h2>Payload Sizes</h2>
+                <div class="checkbox-group horizontal">
+                    <label class="checkbox-label">
+                        <input type="radio" name="payload-mode" value="default" checked>
+                        <span class="cb-text">Default sizes (10B - 4000B)</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="radio" name="payload-mode" value="large">
+                        <span class="cb-text">Include large items (+ 10KB, 100KB, 1MB)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="form-section">
+                <h2>Options</h2>
+                <div class="options-grid">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="opt-queries" checked>
+                        <span class="cb-text">Enable query tests</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="opt-validate">
+                        <span class="cb-text">Data validation</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="opt-monitor" checked>
+                        <span class="cb-text">Resource monitoring</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="opt-randomize">
+                        <span class="cb-text">Randomize order</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="opt-measure-sizes">
+                        <span class="cb-text">Measure document sizes</span>
+                    </label>
+                </div>
+
+                <div class="params-grid" style="margin-top: 15px;">
+                    <div class="param-group">
+                        <label for="index-mode">Indexing mode:</label>
+                        <select id="index-mode">
+                            <option value="default">Default (indexed)</option>
+                            <option value="no-index">No index (insert only)</option>
+                            <option value="full-comparison">Full comparison (both)</option>
+                        </select>
+                    </div>
+                    <div class="param-group">
+                        <label for="monitor-interval">Monitor interval (seconds):</label>
+                        <input type="number" id="monitor-interval" value="0.5" min="0.1" max="30" step="0.1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="form-actions">
+                <button type="submit" id="run-btn" class="btn-primary btn-large">Run Benchmark</button>
+                <button type="button" id="stop-btn" class="btn-danger btn-large" style="display:none;">Stop</button>
+            </div>
+        </form>
+
+        <!-- Output Console -->
+        <div id="output-section" class="output-section" style="display:none;">
+            <h2>
+                Benchmark Output
+                <span id="run-status" class="run-status"></span>
+            </h2>
+            <div id="output-console" class="output-console"></div>
+        </div>
+    </div>
+
+    <script src="js/benchmark.js"></script>
+</body>
+</html>
