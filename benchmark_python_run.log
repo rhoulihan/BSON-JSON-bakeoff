@@ -1,0 +1,93 @@
+⚠️  pymongo not found, attempting to install...
+❌ Failed to install pymongo
+⚠️  Warning: Results storage modules not available: No module named 'pymongo'
+
+================================================================================
+BENCHMARK: Replicating LinkedIn Article Tests (Docker Version)
+================================================================================
+Document count: 1,000
+Runs per test: 1 (best time reported)
+Batch size: 100
+Query tests: ENABLED (10 links per document)
+Large items: DISABLED
+Start time: 2026-02-16 12:11:16
+
+Stopping all Docker containers...
+✓ All Docker containers stopped
+
+
+================================================================================
+SINGLE ATTRIBUTE TESTS WITH QUERIES
+================================================================================
+
+--- MongoDB (BSON) ---
+  Starting mongodb-benchmark... ✓ Ready (took 2s)
+  Testing: 10B single attribute... ✓ 120ms (8,333 docs/sec)
+  Testing: 200B single attribute... ✓ 126ms (7,937 docs/sec)
+  Testing: 1000B single attribute... ✓ 128ms (7,812 docs/sec)
+  Testing: 2000B single attribute... ✓ 128ms (7,812 docs/sec)
+  Testing: 4000B single attribute... ✓ 124ms (8,065 docs/sec)
+
+--- PostgreSQL (JSONB) ---
+  Stopping mongodb-benchmark... ✓ Stopped
+  Skipping file cleanup for mongodb (Docker containers use --rm flag)
+  Starting postgres-benchmark... ✓ Ready (took 2s)
+  Testing: 10B single attribute... ✓ 31ms (32,258 docs/sec)
+  Testing: 200B single attribute... ✓ 128ms (7,812 docs/sec)
+  Testing: 1000B single attribute... ✓ 400ms (2,500 docs/sec)
+  Testing: 2000B single attribute... ✓ 686ms (1,458 docs/sec)
+  Testing: 4000B single attribute... ✓ 1356ms (737 docs/sec)
+  Stopping postgres-benchmark... ✓ Stopped
+  Skipping file cleanup for postgresql (Docker containers use --rm flag)
+
+================================================================================
+MULTI ATTRIBUTE TESTS WITH QUERIES
+================================================================================
+
+--- MongoDB (BSON) ---
+  Starting mongodb-benchmark... ✓ Ready (took 2s)
+  Testing: 10 attributes × 1B = 10B... ✓ 116ms (8,621 docs/sec)
+  Testing: 10 attributes × 20B = 200B... ✓ 115ms (8,696 docs/sec)
+  Testing: 50 attributes × 20B = 1000B... ✓ 122ms (8,197 docs/sec)
+  Testing: 100 attributes × 20B = 2000B... ✓ 122ms (8,197 docs/sec)
+  Testing: 200 attributes × 20B = 4000B... ✓ 123ms (8,130 docs/sec)
+
+--- PostgreSQL (JSONB) ---
+  Stopping mongodb-benchmark... ✓ Stopped
+  Skipping file cleanup for mongodb (Docker containers use --rm flag)
+  Starting postgres-benchmark... ✓ Ready (took 2s)
+  Testing: 10 attributes × 1B = 10B... ✓ 34ms (29,412 docs/sec)
+  Testing: 10 attributes × 20B = 200B... ✓ 137ms (7,299 docs/sec)
+  Testing: 50 attributes × 20B = 1000B... ✓ 399ms (2,506 docs/sec)
+  Testing: 100 attributes × 20B = 2000B... ✓ 713ms (1,403 docs/sec)
+  Testing: 200 attributes × 20B = 4000B... ✓ 1321ms (757 docs/sec)
+  Stopping postgres-benchmark... ✓ Stopped
+  Skipping file cleanup for postgresql (Docker containers use --rm flag)
+
+====================================================================================================
+SUMMARY: Single-Attribute Results (10K documents) - All with indexes
+====================================================================================================
+Payload      mongodb        postgresql    
+----------------------------------------------------------------------------------------------------
+10B           120ms            31ms
+200B           126ms           128ms
+1000B           128ms           400ms
+2000B           128ms           686ms
+4000B           124ms          1356ms
+
+====================================================================================================
+SUMMARY: Multi-Attribute Results (10K documents) - All with indexes
+====================================================================================================
+Config               mongodb        postgresql    
+----------------------------------------------------------------------------------------------------
+10×1B           116ms            34ms
+10×20B           115ms           137ms
+50×20B           122ms           399ms
+100×20B           122ms           713ms
+200×20B           123ms          1321ms
+
+================================================================================
+✓ Results saved to: article_benchmark_results.json (local backup)
+End time: 2026-02-16 12:12:01
+================================================================================
+
