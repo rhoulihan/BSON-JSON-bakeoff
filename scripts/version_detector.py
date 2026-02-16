@@ -87,7 +87,7 @@ def get_database_version(db_type: str, connection_info: Dict[str, Any]) -> Optio
     Query database for its version.
     
     Args:
-        db_type: Database type ("mongodb", "documentdb", "postgresql", "oracle")
+        db_type: Database type ("mongodb", "documentdb", "postgresql", "oracle", "cockroachdb", "yugabytedb")
         connection_info: Connection information (host, port, etc.)
         
     Returns:
@@ -100,6 +100,10 @@ def get_database_version(db_type: str, connection_info: Dict[str, Any]) -> Optio
             return _get_postgresql_version(connection_info)
         elif db_type == "oracle":
             return _get_oracle_version(connection_info)
+        elif db_type == "cockroachdb":
+            return _get_cockroachdb_version(connection_info)
+        elif db_type == "yugabytedb":
+            return _get_yugabytedb_version(connection_info)
         else:
             logger.warning(f"Unknown database type: {db_type}")
             return None
@@ -247,6 +251,98 @@ def _get_oracle_version(connection_info: Dict[str, Any]) -> Optional[str]:
         return None
     except Exception as e:
         logger.warning(f"Failed to get Oracle version: {e}")
+    return None
+
+
+def _get_cockroachdb_version(connection_info: Dict[str, Any]) -> Optional[str]:
+    """Get CockroachDB version."""
+    try:
+        container = connection_info.get('container')
+
+        # Primary: docker exec cockroach version
+        if container:
+            cmd = f"docker exec {container} cockroach version"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                # Parse output like "Build Tag:    v24.3.1" or "cockroach v24.3.1"
+                match = re.search(r'v(\d+\.\d+(?:\.\d+)?)', result.stdout)
+                if match:
+                    return match.group(1)
+
+        # Fallback: SQL query via cockroach sql --insecure
+        if container:
+            cmd = f"docker exec {container} cockroach sql --insecure -e \"SELECT version()\""
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                # Parse CockroachDB version from SELECT version() output
+                match = re.search(r'v(\d+\.\d+(?:\.\d+)?)', result.stdout)
+                if match:
+                    return match.group(1)
+
+        # Final fallback: psql from host
+        host = connection_info.get('host', 'localhost')
+        port = connection_info.get('port', 26257)
+        user = connection_info.get('user', 'root')
+        password = connection_info.get('password', '')
+
+        env = os.environ.copy()
+        if password:
+            env['PGPASSWORD'] = password
+
+        cmd = f"psql -h {host} -p {port} -U {user} -t -c \'SELECT version();\'"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10, env=env)
+        if result.returncode == 0:
+            match = re.search(r'v(\d+\.\d+(?:\.\d+)?)', result.stdout)
+            if match:
+                return match.group(1)
+
+    except Exception as e:
+        logger.warning(f"Failed to get CockroachDB version: {e}")
+    return None
+
+
+def _get_yugabytedb_version(connection_info: Dict[str, Any]) -> Optional[str]:
+    """Get YugabyteDB version."""
+    try:
+        container = connection_info.get('container')
+
+        # Primary: docker exec yugabyted version
+        if container:
+            cmd = f"docker exec {container} yugabyted version"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                # Parse output like "yugabyted YB-2.23.1.0-b0"
+                match = re.search(r'YB-(\d+\.\d+(?:\.\d+(?:\.\d+)?)?)', result.stdout)
+                if match:
+                    return match.group(1)
+
+        # Fallback: docker exec yb-admin --version
+        if container:
+            cmd = f"docker exec {container} yb-admin --version"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                match = re.search(r'(\d+\.\d+(?:\.\d+(?:\.\d+)?)?)', result.stdout)
+                if match:
+                    return match.group(1)
+
+        # Final fallback: ysqlsh with resolved hostname
+        # YugabyteDB binds YSQL to container hostname, not localhost
+        if container:
+            # Resolve hostname inside container
+            hostname_cmd = f"docker exec {container} hostname"
+            hostname_result = subprocess.run(hostname_cmd, shell=True, capture_output=True, text=True, timeout=5)
+            if hostname_result.returncode == 0:
+                yb_host = hostname_result.stdout.strip()
+                cmd = f"docker exec {container} ysqlsh -h {yb_host} -U yugabyte -t -c \'SELECT version();\'"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    # Parse "PostgreSQL 11.2-YB-2.23.1.0-b0" style output
+                    match = re.search(r'YB-(\d+\.\d+(?:\.\d+(?:\.\d+)?)?)', result.stdout)
+                    if match:
+                        return match.group(1)
+
+    except Exception as e:
+        logger.warning(f"Failed to get YugabyteDB version: {e}")
     return None
 
 
@@ -399,6 +495,8 @@ def get_all_versions(db_type: str, image_name: str, container_name: Optional[str
         "mongodb-cloud": "mongodb-driver-sync",
         "documentdb-azure": "mongodb-driver-sync",
         "postgresql": "postgresql",
+        "yugabytedb": "postgresql",
+        "cockroachdb": "postgresql",
         "oracle": "ojdbc11"
     }
     client_lib = client_lib_map.get(db_type)
